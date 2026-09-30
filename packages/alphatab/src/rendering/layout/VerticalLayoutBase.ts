@@ -145,8 +145,10 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
         if (previousPartialId) {
             this._lazyPartials.delete(previousPartialId);
         }
+        renderHints.firstChangedMasterBar = system.firstBarIndex;
+        renderHints.lastChangedMasterBar = system.lastBarIndex;
         this.renderer.boundsLookup = new BoundsLookup();
-        renderHints.useBoundsDelta = false;
+        renderHints.useBoundsDelta = true;
         const invalidationCompletedAt = renderHints.measurePerformance ? performance.now() : 0;
 
         // signal all partials which didn't change
