@@ -28,6 +28,11 @@ export type IAlphaTabWorkerMessage =
           fontSizes: Map<string, FontSizeDefinition>;
           renderHints: RenderHints | undefined;
       }
+    | {
+          cmd: 'alphaTab.renderTrackIndexes';
+          trackIndexes: number[] | null;
+          renderHints: RenderHints | undefined;
+      }
     // worker -> main
     | { cmd: 'alphaTab.preRender'; resize: boolean }
     | { cmd: 'alphaTab.partialRenderFinished'; result: RenderFinishedEventArgs }

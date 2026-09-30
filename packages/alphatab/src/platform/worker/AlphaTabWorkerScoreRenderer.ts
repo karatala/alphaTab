@@ -130,6 +130,14 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
         });
     }
 
+    public renderTrackIndexes(trackIndexes: number[] | null, renderHints?: RenderHints): void {
+        this._worker.postMessage({
+            cmd: 'alphaTab.renderTrackIndexes',
+            trackIndexes: Environment.prepareForPostMessage(trackIndexes),
+            renderHints: renderHints
+        });
+    }
+
     public readonly preRender: IEventEmitterOfT<boolean> = new EventEmitterOfT<boolean>();
     public readonly partialRenderFinished: IEventEmitterOfT<RenderFinishedEventArgs> =
         new EventEmitterOfT<RenderFinishedEventArgs>();

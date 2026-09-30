@@ -104,6 +104,11 @@ export class ScoreRendererWrapper implements IScoreRenderer {
         this._instance?.renderScore(score, trackIndexes, renderHints);
     }
 
+    public renderTrackIndexes(trackIndexes: number[] | null, renderHints?: RenderHints): void {
+        this._trackIndexes = trackIndexes;
+        this._instance?.renderTrackIndexes(trackIndexes, renderHints);
+    }
+
     public renderResult(resultId: string): void {
         this._instance?.renderResult(resultId);
     }

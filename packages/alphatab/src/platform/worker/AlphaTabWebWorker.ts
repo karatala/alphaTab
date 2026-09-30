@@ -90,6 +90,9 @@ export class AlphaTabWebWorker {
                     data.score == null ? null : JsonConverter.jsObjectToScore(data.score, this._renderer.settings);
                 this._renderMultiple(score, data.trackIndexes, renderHints);
                 break;
+            case 'alphaTab.renderTrackIndexes':
+                this._renderMultiple(this._renderer.score, data.trackIndexes, data.renderHints);
+                break;
             case 'alphaTab.updateSettings':
                 this._updateSettings(data.settings);
                 break;

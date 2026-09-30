@@ -744,6 +744,51 @@ export class AlphaTabApiBase<TSettings> {
         }
     }
 
+    /**
+     * Renders tracks from the currently loaded score without sending the score to the renderer again.
+     * @param trackIndexes The indexes of the tracks to render. If not provided, the first track is rendered.
+     * @param renderHints Additional hints to respect during layouting and rendering.
+     */
+    public renderTrackIndexes(trackIndexes?: number[], renderHints?: RenderHints): void {
+        const score = this.score;
+        if (!score) {
+            return;
+        }
+
+        const tracks: Track[] = [];
+        if (!trackIndexes || trackIndexes.length === 0) {
+            if (score.tracks.length > 0) {
+                tracks.push(score.tracks[0]);
+            }
+        } else if (trackIndexes.length === 1 && trackIndexes[0] === -1) {
+            for (const track of score.tracks) {
+                tracks.push(track);
+            }
+        } else {
+            for (const trackIndex of trackIndexes) {
+                if (trackIndex >= 0 && trackIndex < score.tracks.length) {
+                    tracks.push(score.tracks[trackIndex]);
+                }
+            }
+        }
+
+        this._tracks = tracks;
+        const startIndex = ModelUtils.computeFirstDisplayedBarIndex(score, this.settings);
+        const endIndex = ModelUtils.computeLastDisplayedBarIndex(score, this.settings, startIndex);
+        if (this._tickCache) {
+            this._tickCache.multiBarRestInfo = ModelUtils.buildMultiBarRestInfo(this.tracks, startIndex, endIndex);
+        }
+        this._trackIndexes = tracks.map(track => track.index);
+        this._trackIndexLookup = new Set<number>(this._trackIndexes);
+
+        if (this.uiFacade.canRender) {
+            this._renderer.width = this.container.width;
+            this._renderer.renderTrackIndexes(this._trackIndexes, renderHints);
+        } else {
+            this.uiFacade.canRenderChanged.on(() => this.renderTrackIndexes(trackIndexes, renderHints));
+        }
+    }
+
     private _internalRenderTracks(score: Score, tracks: Track[], renderHints: RenderHints | undefined): void {
         ModelUtils.applyPitchOffsets(this.settings, score);
         if (score !== this.score) {

@@ -84,6 +84,13 @@ export interface IScoreRenderer {
     renderScore(score: Score | null, trackIndexes: number[] | null, renderHints?: RenderHints): void;
 
     /**
+     * Initiates the rendering of tracks from the currently loaded score.
+     * @param trackIndexes The indexes of the tracks to draw.
+     * @param renderHints Additional hints to respect during layouting and rendering.
+     */
+    renderTrackIndexes(trackIndexes: number[] | null, renderHints?: RenderHints): void;
+
+    /**
      * Requests the rendering of a chunk which was layed out before.
      * @param resultId the result ID as provided by the {@link partialLayoutFinished} event.
      * @remarks

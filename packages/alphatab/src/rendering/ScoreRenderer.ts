@@ -104,6 +104,10 @@ export class ScoreRenderer implements IScoreRenderer {
         }
     }
 
+    public renderTrackIndexes(trackIndexes: number[] | null, renderHints?: RenderHints): void {
+        this.renderScore(this.score, trackIndexes, renderHints);
+    }
+
     /**
      * Initiates rendering fof the given tracks.
      * @param tracks The tracks to render.
