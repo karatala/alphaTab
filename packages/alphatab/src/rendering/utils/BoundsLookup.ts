@@ -9,10 +9,202 @@ import { MasterBarBounds } from '@coderline/alphatab/rendering/utils/MasterBarBo
 import { NoteBounds } from '@coderline/alphatab/rendering/utils/NoteBounds';
 import { StaffSystemBounds } from '@coderline/alphatab/rendering/utils/StaffSystemBounds';
 
+type CompactBounds = [number, number, number, number];
+type CompactNoteBounds = [number, CompactBounds];
+type CompactBeatBounds = [CompactBounds, CompactBounds, number, number, number, number, number, number, CompactNoteBounds[] | null];
+type CompactBarBounds = [CompactBounds, CompactBounds, CompactBeatBounds[]];
+type CompactMasterBarBounds = [number, boolean, CompactBounds, CompactBounds, CompactBounds, CompactBarBounds[] | null];
+type CompactStaffSystemBounds = [CompactBounds, CompactBounds, CompactMasterBarBounds[]];
+
+/**
+ * Compact worker-transfer representation of a complete or partial bounds lookup.
+ * @internal
+ */
+export type CompactBoundsLookup = CompactStaffSystemBounds[];
+
 /**
  * @public
  */
 export class BoundsLookup {
+    public toCompactJson(firstChangedMasterBar?: number, lastChangedMasterBar?: number): CompactBoundsLookup {
+        return this.staffSystems.map((staffSystem): CompactStaffSystemBounds => [
+            BoundsLookup._boundsToCompactJson(staffSystem.visualBounds),
+            BoundsLookup._boundsToCompactJson(staffSystem.realBounds),
+            staffSystem.bars.map((masterBar): CompactMasterBarBounds => {
+                const includeNestedBounds = firstChangedMasterBar === undefined || lastChangedMasterBar === undefined || (masterBar.index >= firstChangedMasterBar && masterBar.index <= lastChangedMasterBar);
+                return [
+                    masterBar.index,
+                    masterBar.isFirstOfLine,
+                    BoundsLookup._boundsToCompactJson(masterBar.lineAlignedBounds),
+                    BoundsLookup._boundsToCompactJson(masterBar.visualBounds),
+                    BoundsLookup._boundsToCompactJson(masterBar.realBounds),
+                    includeNestedBounds ? masterBar.bars.map((bar): CompactBarBounds => [
+                        BoundsLookup._boundsToCompactJson(bar.visualBounds),
+                        BoundsLookup._boundsToCompactJson(bar.realBounds),
+                        bar.beats.map((beat): CompactBeatBounds => [
+                            BoundsLookup._boundsToCompactJson(beat.visualBounds),
+                            BoundsLookup._boundsToCompactJson(beat.realBounds),
+                            beat.onNotesX,
+                            beat.beat.index,
+                            beat.beat.voice.index,
+                            beat.beat.voice.bar.index,
+                            beat.beat.voice.bar.staff.index,
+                            beat.beat.voice.bar.staff.track.index,
+                            beat.notes?.map((note): CompactNoteBounds => [note.note.index, BoundsLookup._boundsToCompactJson(note.noteHeadBounds)]) ?? null
+                        ])
+                    ]) : null
+                ];
+            })
+        ]);
+    }
+
+    public static fromCompactJson(json: CompactBoundsLookup | null, score: Score, existingLookup: BoundsLookup | null = null): BoundsLookup | null {
+        if (json === null) {
+            return null;
+        }
+        if (existingLookup) {
+            return existingLookup._applyCompactJsonDelta(json, score);
+        }
+
+        const lookup = new BoundsLookup();
+        for (const staffSystemData of json) {
+            const staffSystemBounds = new StaffSystemBounds();
+            staffSystemBounds.visualBounds = BoundsLookup._boundsFromCompactJson(staffSystemData[0]);
+            staffSystemBounds.realBounds = BoundsLookup._boundsFromCompactJson(staffSystemData[1]);
+            lookup.addStaffSystem(staffSystemBounds);
+            for (const masterBarData of staffSystemData[2]) {
+                const masterBarBounds = new MasterBarBounds();
+                masterBarBounds.index = masterBarData[0];
+                masterBarBounds.isFirstOfLine = masterBarData[1];
+                masterBarBounds.lineAlignedBounds = BoundsLookup._boundsFromCompactJson(masterBarData[2]);
+                masterBarBounds.visualBounds = BoundsLookup._boundsFromCompactJson(masterBarData[3]);
+                masterBarBounds.realBounds = BoundsLookup._boundsFromCompactJson(masterBarData[4]);
+                lookup.addMasterBar(masterBarBounds);
+                for (const barData of masterBarData[5] ?? []) {
+                    const barBounds = new BarBounds();
+                    barBounds.visualBounds = BoundsLookup._boundsFromCompactJson(barData[0]);
+                    barBounds.realBounds = BoundsLookup._boundsFromCompactJson(barData[1]);
+                    masterBarBounds.addBar(barBounds);
+                    for (const beatData of barData[2]) {
+                        const beatBounds = new BeatBounds();
+                        beatBounds.visualBounds = BoundsLookup._boundsFromCompactJson(beatData[0]);
+                        beatBounds.realBounds = BoundsLookup._boundsFromCompactJson(beatData[1]);
+                        beatBounds.onNotesX = beatData[2];
+                        beatBounds.beat = score.tracks[beatData[7]].staves[beatData[6]].bars[beatData[5]].voices[beatData[4]].beats[beatData[3]];
+                        if (beatData[8]) {
+                            for (const noteData of beatData[8]) {
+                                const noteBounds = new NoteBounds();
+                                noteBounds.note = beatBounds.beat.notes[noteData[0]];
+                                noteBounds.noteHeadBounds = BoundsLookup._boundsFromCompactJson(noteData[1]);
+                                beatBounds.addNote(noteBounds);
+                            }
+                        }
+                        barBounds.addBeat(beatBounds);
+                    }
+                }
+            }
+        }
+        for (const staffSystemBounds of lookup.staffSystems) {
+            staffSystemBounds.isFinished = true;
+        }
+        lookup.isFinished = true;
+        return lookup;
+    }
+
+    private _applyCompactJsonDelta(json: CompactBoundsLookup, score: Score): BoundsLookup {
+        for (let staffSystemIndex = 0; staffSystemIndex < json.length; staffSystemIndex++) {
+            const staffSystemData = json[staffSystemIndex];
+            const staffSystemBounds = this.staffSystems[staffSystemIndex];
+            if (!staffSystemBounds) {
+                continue;
+            }
+            BoundsLookup._copyCompactBounds(staffSystemBounds.visualBounds, staffSystemData[0]);
+            BoundsLookup._copyCompactBounds(staffSystemBounds.realBounds, staffSystemData[1]);
+            for (const masterBarData of staffSystemData[2]) {
+                const previousMasterBarBounds = this.findMasterBarByIndex(masterBarData[0]);
+                if (!previousMasterBarBounds) {
+                    continue;
+                }
+                if (masterBarData[5] === null) {
+                    const offsetX = masterBarData[4][0] - previousMasterBarBounds.realBounds.x;
+                    const offsetY = masterBarData[4][1] - previousMasterBarBounds.realBounds.y;
+                    if (offsetX !== 0 || offsetY !== 0) {
+                        for (const barBounds of previousMasterBarBounds.bars) {
+                            BoundsLookup._shiftBounds(barBounds.visualBounds, offsetX, offsetY);
+                            BoundsLookup._shiftBounds(barBounds.realBounds, offsetX, offsetY);
+                            for (const beatBounds of barBounds.beats) {
+                                BoundsLookup._shiftBounds(beatBounds.visualBounds, offsetX, offsetY);
+                                BoundsLookup._shiftBounds(beatBounds.realBounds, offsetX, offsetY);
+                                beatBounds.onNotesX += offsetX;
+                                for (const noteBounds of beatBounds.notes ?? []) {
+                                    BoundsLookup._shiftBounds(noteBounds.noteHeadBounds, offsetX, offsetY);
+                                }
+                            }
+                        }
+                    }
+                    previousMasterBarBounds.isFirstOfLine = masterBarData[1];
+                    BoundsLookup._copyCompactBounds(previousMasterBarBounds.lineAlignedBounds, masterBarData[2]);
+                    BoundsLookup._copyCompactBounds(previousMasterBarBounds.visualBounds, masterBarData[3]);
+                    BoundsLookup._copyCompactBounds(previousMasterBarBounds.realBounds, masterBarData[4]);
+                    continue;
+                }
+
+                for (const barBounds of previousMasterBarBounds.bars) {
+                    for (const beatBounds of barBounds.beats) {
+                        const registeredBounds = this._beatLookup.get(beatBounds.beat.id);
+                        if (!registeredBounds) {
+                            continue;
+                        }
+                        const remainingBounds = registeredBounds.filter(registeredBound => registeredBound !== beatBounds);
+                        if (remainingBounds.length === 0) {
+                            this._beatLookup.delete(beatBounds.beat.id);
+                        } else {
+                            this._beatLookup.set(beatBounds.beat.id, remainingBounds);
+                        }
+                    }
+                }
+
+                const replacementLookup = BoundsLookup.fromCompactJson([[staffSystemData[0], staffSystemData[1], [masterBarData]]], score);
+                const replacementMasterBarBounds = replacementLookup?.staffSystems[0]?.bars[0];
+                const masterBarPosition = staffSystemBounds.bars.indexOf(previousMasterBarBounds);
+                if (!replacementMasterBarBounds || masterBarPosition < 0) {
+                    continue;
+                }
+                replacementMasterBarBounds.staffSystemBounds = staffSystemBounds;
+                staffSystemBounds.bars[masterBarPosition] = replacementMasterBarBounds;
+                this._masterBarLookup.set(replacementMasterBarBounds.index, replacementMasterBarBounds);
+                for (const barBounds of replacementMasterBarBounds.bars) {
+                    for (const beatBounds of barBounds.beats) {
+                        this.addBeat(beatBounds);
+                    }
+                }
+            }
+        }
+        return this;
+    }
+
+    private static _copyCompactBounds(bounds: Bounds, boundsRaw: CompactBounds): void {
+        bounds.x = boundsRaw[0];
+        bounds.y = boundsRaw[1];
+        bounds.w = boundsRaw[2];
+        bounds.h = boundsRaw[3];
+    }
+
+    private static _shiftBounds(bounds: Bounds, offsetX: number, offsetY: number): void {
+        bounds.x += offsetX;
+        bounds.y += offsetY;
+    }
+
+    private static _boundsFromCompactJson(boundsRaw: CompactBounds): Bounds {
+        const bounds = new Bounds();
+        BoundsLookup._copyCompactBounds(bounds, boundsRaw);
+        return bounds;
+    }
+
+    private static _boundsToCompactJson(bounds: Bounds): CompactBounds {
+        return [bounds.x, bounds.y, bounds.w, bounds.h];
+    }
+
     public toJson(): Map<string, unknown> {
         const json = new Map<string, unknown>();
         const systems: Map<string, unknown>[] = [];
