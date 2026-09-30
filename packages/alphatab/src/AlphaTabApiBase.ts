@@ -3288,6 +3288,8 @@ export class AlphaTabApiBase<TSettings> {
      * ```
      */
     public clearPlaybackRangeHighlight() {
+        this._selectionStart = undefined;
+        this._selectionEnd = undefined;
         this._cursorSelectRange(undefined, undefined);
     }
 
