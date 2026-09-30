@@ -389,6 +389,12 @@ export class AlphaSynthWrapper implements IAlphaSynth {
         }
     }
 
+    public setChannelPan(channel: number, pan: number): void {
+        if (this._instance) {
+            this._instance!.setChannelPan(channel, pan);
+        }
+    }
+
     public readonly ready: IEventEmitter;
     public readonly readyForPlayback: IEventEmitter;
     public readonly finished: IEventEmitter = new EventEmitter();

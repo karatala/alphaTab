@@ -511,6 +511,10 @@ export class AlphaSynthBase implements IAlphaSynth {
         this.synthesizer.channelSetMixVolume(channel, volume);
     }
 
+    public setChannelPan(channel: number, pan: number): void {
+        this.synthesizer.channelSetMixPan(channel, pan);
+    }
+
     private _onSamplesPlayed(sampleCount: number): void {
         if (sampleCount === 0) {
             return;

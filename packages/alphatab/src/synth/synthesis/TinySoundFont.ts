@@ -54,6 +54,7 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
     private _mutedChannels: Map<number, boolean> = new Map<number, boolean>();
     private _soloChannels: Map<number, boolean> = new Map<number, boolean>();
     private _isAnySolo: boolean = false;
+    private _panOverrides: Map<number, number> = new Map<number, number>();
 
     // these are the transposition pitches applied generally on the song (via Settings or general transposition)
     private _transpositionPitches: Map<number, number> = new Map<number, number>();
@@ -91,6 +92,12 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
             }
         }
         c.mixVolume = volume;
+    }
+
+    public channelSetMixPan(channel: number, pan: number): void {
+        const clampedPan: number = Math.max(0, Math.min(1, pan));
+        this._panOverrides.set(channel, clampedPan);
+        this.channelSetPan(channel, clampedPan);
     }
 
     public channelSetMute(channel: number, mute: boolean): void {
@@ -839,6 +846,7 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
      * @param pan stereo panning value from 0.0 (left) to 1.0 (right) (default 0.5 center)
      */
     public channelSetPan(channel: number, pan: number): void {
+        pan = this._panOverrides.get(channel) ?? pan;
         for (const v of this._voices) {
             if (v.playingChannel === channel && v.playingPreset !== -1) {
                 const newPan: number = v.region!.pan + pan - 0.5;

@@ -127,6 +127,9 @@ export class AlphaSynthWebWorker {
             case 'alphaSynth.setChannelVolume':
                 this._player.setChannelVolume(data.channel, data.volume);
                 break;
+            case 'alphaSynth.setChannelPan':
+                this._player.setChannelPan(data.channel, data.pan);
+                break;
             case 'alphaSynth.resetChannelStates':
                 this._player.resetChannelStates();
                 break;

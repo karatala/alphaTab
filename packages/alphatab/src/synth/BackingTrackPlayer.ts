@@ -131,6 +131,9 @@ class BackingTrackAudioSynthesizer implements IAudioSampleSynthesizer {
     public channelSetMixVolume(_channel: number, _volume: number): void {
         // not supported, ignore
     }
+    public channelSetMixPan(_channel: number, _pan: number): void {
+        // not supported, ignore
+    }
     public hasSamplesForProgram(_program: number): boolean {
         return true;
     }

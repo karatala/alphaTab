@@ -134,6 +134,13 @@ export interface IAudioSampleSynthesizer {
     channelSetMixVolume(channel: number, volume: number): void;
 
     /**
+     * Gets or sets the current and initial pan of the given channel.
+     * @param channel The channel number.
+     * @param pan The stereo pan position (0.0 left, 0.5 center, 1.0 right).
+     */
+    channelSetMixPan(channel: number, pan: number): void;
+
+    /**
      * Checks whether the synth has loaded the samples for a given midi program.
      * @param program The program to check.
      */

@@ -366,6 +366,14 @@ export class AlphaSynthWebWorkerApi implements IAlphaSynth {
         });
     }
 
+    public setChannelPan(channel: number, pan: number): void {
+        this._synth.postMessage({
+            cmd: 'alphaSynth.setChannelPan',
+            channel: channel,
+            pan: pan
+        });
+    }
+
     public handleWorkerMessage(e: MessageEvent<IAlphaSynthWorkerMessage>): void {
         const data = e.data;
         switch (data.cmd) {

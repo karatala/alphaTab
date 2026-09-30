@@ -84,6 +84,7 @@ export type IAlphaSynthWorkerMessage =
     | { cmd: 'alphaSynth.setChannelTranspositionPitch'; channel: number; semitones: number }
     | { cmd: 'alphaSynth.setChannelSolo'; channel: number; solo: boolean }
     | { cmd: 'alphaSynth.setChannelVolume'; channel: number; volume: number }
+    | { cmd: 'alphaSynth.setChannelPan'; channel: number; pan: number }
     | { cmd: 'alphaSynth.resetChannelStates' }
     | { cmd: 'alphaSynth.destroy' }
     | { cmd: 'alphaSynth.applyTranspositionPitches'; transpositionPitches: Map<number, number> }
