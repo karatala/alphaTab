@@ -25,6 +25,7 @@ export class HorizontalScreenLayoutPartialInfo {
 export class HorizontalScreenLayout extends ScoreLayout {
     private _system: StaffSystem | null = null;
     private _systems: StaffSystem[] = [];
+    private _cachedMasterBarRenderers: Map<number, MasterBarsRenderers> | null = null;
 
     public override get systems(): StaffSystem[] {
         return this._systems;
@@ -50,11 +51,53 @@ export class HorizontalScreenLayout extends ScoreLayout {
         // not supported
     }
 
-    public override doUpdateForBars(_renderHints: RenderHints): boolean {
-        // not supported yet, modifications likely cause anyhow full updates
-        // as we do not optimize effect bands yet. with effect bands being more
-        // isolated in bars we could try updating dynamically
-        return false;
+    public override isMasterBarRendererCached(masterBarIndex: number): boolean {
+        return this._cachedMasterBarRenderers?.has(masterBarIndex) === true;
+    }
+
+    public override doUpdateForBars(renderHints: RenderHints): boolean {
+        const firstChangedMasterBar = renderHints.firstChangedMasterBar!;
+        const lastChangedMasterBar = renderHints.lastChangedMasterBar;
+        if (!this._system || this._system.masterBarsRenderers.length === 0 || lastChangedMasterBar === undefined || !this.renderer.settings.core.enableLazyLoading || this._system.firstBarIndex !== this.firstBarIndex || this._system.lastBarIndex !== this.lastBarIndex) {
+            return false;
+        }
+        if (this._system.allStaves.some(staff => staff.getSharedLayoutData('tab.whammy.offset', null) !== null)) {
+            return false;
+        }
+
+        renderHints.useBoundsDelta = true;
+        this._cachedMasterBarRenderers = new Map<number, MasterBarsRenderers>();
+        let expandedFirstChangedMasterBar = firstChangedMasterBar;
+        let expandedLastChangedMasterBar = lastChangedMasterBar;
+        for (const renderers of this._system.masterBarsRenderers) {
+            if (renderers.lastMasterBarIndex < firstChangedMasterBar || renderers.masterBar.index > lastChangedMasterBar) {
+                this._cachedMasterBarRenderers.set(renderers.masterBar.index, renderers);
+                continue;
+            }
+            expandedFirstChangedMasterBar = Math.min(expandedFirstChangedMasterBar, renderers.masterBar.index);
+            expandedLastChangedMasterBar = Math.max(expandedLastChangedMasterBar, renderers.lastMasterBarIndex);
+            for (const renderer of renderers.renderers) {
+                const rendererLookup = this._barRendererLookup.get(renderer.staff!.staffId);
+                rendererLookup?.delete(renderer.bar.id);
+                if (renderer.additionalMultiRestBars) {
+                    for (const additionalBar of renderer.additionalMultiRestBars) {
+                        rendererLookup?.delete(additionalBar.id);
+                    }
+                }
+            }
+        }
+
+        renderHints.firstChangedMasterBar = expandedFirstChangedMasterBar;
+        renderHints.lastChangedMasterBar = expandedLastChangedMasterBar;
+        this.renderer.boundsLookup!.clearFromMasterBar(0);
+        this._lazyPartials.clear();
+        this.beamingRuleLookups.clear();
+        try {
+            this.doLayoutAndRender(renderHints);
+        } finally {
+            this._cachedMasterBarRenderers = null;
+        }
+        return true;
     }
 
     protected doLayoutAndRender(renderHints: RenderHints | undefined): void {
@@ -93,18 +136,19 @@ export class HorizontalScreenLayout extends ScoreLayout {
                     ? multiBarRestInfo.get(currentBarIndex)!
                     : null;
 
-            const result = this._system.addBars(
-                this.renderer.tracks!,
-                currentBarIndex,
-                additionalMultiBarsRestBarIndices
-            );
+            const cachedRenderers = this._cachedMasterBarRenderers?.get(currentBarIndex);
+            const result = cachedRenderers
+                ? this._system.addMasterBarRenderers(this.renderer.tracks!, cachedRenderers, false)!
+                : this._system.addBars(this.renderer.tracks!, currentBarIndex, additionalMultiBarsRestBarIndices);
 
             // complete partial if its full and we are not linked
             if (currentPartial.masterBars.length >= countPerPartial && !result.isLinkedToPrevious) {
                 currentPartial = this._completePartial(partials, currentPartial);
             }
 
-            this._scaleBars(result);
+            if (!cachedRenderers) {
+                this._scaleBars(result);
+            }
 
             currentPartial.results.push(result);
             currentPartial.masterBars.push(score.masterBars[currentBarIndex]);
@@ -123,6 +167,7 @@ export class HorizontalScreenLayout extends ScoreLayout {
         currentBarIndex = 0;
 
         let x = 0;
+        this._system.buildBoundingsLookup(0, 0);
         for (let i: number = 0; i < partials.length; i++) {
             const partial: HorizontalScreenLayoutPartialInfo = partials[i];
 
@@ -142,7 +187,6 @@ export class HorizontalScreenLayout extends ScoreLayout {
             // pull to local scope for lambda
             const partialBarIndex = currentBarIndex;
             const partialIndex = i;
-            this._system.buildBoundingsLookup(0, 0);
             this.registerPartial(e, canvas => {
                 let renderX: number = this._system!.getBarX(partial.masterBars[0].index) + this._system!.accoladeWidth;
                 if (partialIndex === 0) {

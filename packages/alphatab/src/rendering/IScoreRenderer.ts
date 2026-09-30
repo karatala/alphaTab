@@ -27,6 +27,15 @@ export interface RenderHints {
      * At this point only the rendering is affected and the generated MIDI has to be updated separately.
      */
     firstChangedMasterBar?: number;
+
+    /**
+     * Indicates the index of the last masterbar which was modified in the data model.
+     * A renderer may use the complete first-to-last range for a bounded partial update.
+     */
+    lastChangedMasterBar?: number;
+
+    /** @internal */
+    useBoundsDelta?: boolean;
 }
 
 /**

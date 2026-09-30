@@ -300,12 +300,14 @@ export class StaffSystem {
         return this.masterBarsRenderers[this.masterBarsRenderers.length - 1].lastMasterBarIndex;
     }
 
-    public addMasterBarRenderers(tracks: Track[], renderers: MasterBarsRenderers): MasterBarsRenderers | null {
+    public addMasterBarRenderers(tracks: Track[], renderers: MasterBarsRenderers, relayout: boolean = true): MasterBarsRenderers | null {
         if (tracks.length === 0) {
             return null;
         }
         this.masterBarsRenderers.push(renderers);
-        renderers.layoutingInfo.preBeatSize = 0;
+        if (relayout) {
+            renderers.layoutingInfo.preBeatSize = 0;
+        }
         let src: number = 0;
 
         let firstVisibleStaff: RenderStaff | undefined = undefined;
@@ -317,7 +319,7 @@ export class StaffSystem {
 
             for (const s of g.staves) {
                 const renderer: BarRendererBase = renderers.renderers[src++];
-                s.addBarRenderer(renderer);
+                s.addBarRenderer(renderer, relayout);
 
                 if (s.isVisible) {
                     anyStaffVisible = true;
@@ -353,9 +355,19 @@ export class StaffSystem {
 
         // On the resize path the layoutingInfo was finalized in a previous layout pass, so we
         // only need to check whether its min-duration reference still matches the new system's.
-        this._trackSystemMinDuration(renderers.layoutingInfo);
-
-        this._applyLayoutAndUpdateWidth();
+        if (relayout) {
+            this._trackSystemMinDuration(renderers.layoutingInfo);
+            this._applyLayoutAndUpdateWidth();
+        } else {
+            const firstRenderer = renderers.renderers[0];
+            if (firstRenderer) {
+                this.totalBarDisplayScale += this.getBarDisplayScale(firstRenderer);
+            }
+            this.totalFixedOverhead += renderers.maxFixedOverhead;
+            this.totalContentWidth += renderers.maxContentWidth;
+            this.width += renderers.width;
+            this.computedWidth += renderers.width;
+        }
         return renderers;
     }
 
@@ -1345,7 +1357,9 @@ export class StaffSystem {
                     } else {
                         masterBarBounds = masterBarBoundsLookup.get(renderer.bar.masterBar.index)!;
                     }
-                    renderer.buildBoundingsLookup(masterBarBounds, x, cy + this.y + staff.y);
+                    if (!this.layout.isMasterBarRendererCached(renderer.bar.masterBar.index)) {
+                        renderer.buildBoundingsLookup(masterBarBounds, x, cy + this.y + staff.y);
+                    }
                 }
             }
         }

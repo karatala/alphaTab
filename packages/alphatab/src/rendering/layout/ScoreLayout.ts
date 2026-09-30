@@ -44,7 +44,7 @@ interface LazyPartial {
  * @internal
  */
 export abstract class ScoreLayout {
-    private _barRendererLookup: Map<string, Map<number, BarRendererBase>> = new Map();
+    protected _barRendererLookup: Map<string, Map<number, BarRendererBase>> = new Map();
 
     protected pagePadding: number[] | null = null;
 
@@ -136,7 +136,11 @@ export abstract class ScoreLayout {
         Profiler.end('layout.doLayoutAndRender');
     }
 
-    private _lazyPartials: Map<string, LazyPartial> = new Map<string, LazyPartial>();
+    protected _lazyPartials: Map<string, LazyPartial> = new Map<string, LazyPartial>();
+
+    public isMasterBarRendererCached(_masterBarIndex: number): boolean {
+        return false;
+    }
 
     protected getExistingPartialArgs(id: string): RenderFinishedEventArgs | undefined {
         return this._lazyPartials.has(id) ? this._lazyPartials.get(id)!.args : undefined;

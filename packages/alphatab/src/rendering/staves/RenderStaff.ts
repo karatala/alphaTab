@@ -152,16 +152,27 @@ export class RenderStaff implements IStaffDisplayContext {
         }
     }
 
-    public addBarRenderer(renderer: BarRendererBase): void {
+    public addBarRenderer(renderer: BarRendererBase, relayout: boolean = true): void {
         renderer.staff = this;
         renderer.index = this.barRenderers.length;
-        renderer.reLayout();
+        if (relayout) {
+            renderer.reLayout();
+        } else {
+            this.registerStaffTop(0);
+            this.registerStaffBottom(renderer.height);
+            this.registerOverflowTop(renderer.topOverflow);
+            this.registerOverflowBottom(renderer.bottomOverflow);
+        }
         this.barRenderers.push(renderer);
-        this.system.layout.registerBarRenderer(this.staffId, renderer);
+        if (relayout) {
+            this.system.layout.registerBarRenderer(this.staffId, renderer);
+        }
         if (renderer.bar.isEmpty || renderer.bar.isRestOnly) {
             this._emptyBarCount++;
         }
-        this._updateVisibility();
+        if (relayout) {
+            this._updateVisibility();
+        }
     }
 
     private _updateVisibility() {
@@ -302,20 +313,22 @@ export class RenderStaff implements IStaffDisplayContext {
         this.systemSkyline.reset();
 
         // Only renderer 0 ever yields continuations; hoist out of the per-renderer loop.
-        if (this.barRenderers.length > 0) {
+        if (this.barRenderers.length > 0 && !this.system.layout.isMasterBarRendererCached(this.barRenderers[0].bar.masterBar.index)) {
             this.barRenderers[0].registerMultiSystemSlurs(
                 this.system.layout!.slurRegistry.getAllContinuations(this.barRenderers[0])
             );
         }
 
         for (const renderer of this.barRenderers) {
-            renderer.finalizeOwnedTies();
-            renderer.finalizeEffectBandSpans();
+            if (!this.system.layout.isMasterBarRendererCached(renderer.bar.masterBar.index)) {
+                renderer.finalizeOwnedTies();
+                renderer.finalizeEffectBandSpans();
 
-            if (renderer.tiesDirty) {
-                renderer.refreshSizes();
-                renderer.registerStaffOverflows();
-                renderer.clearTiesDirty();
+                if (renderer.tiesDirty) {
+                    renderer.refreshSizes();
+                    renderer.registerStaffOverflows();
+                    renderer.clearTiesDirty();
+                }
             }
             if (renderer.height > this.height) {
                 this.height = renderer.height;
