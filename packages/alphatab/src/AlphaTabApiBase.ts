@@ -3731,7 +3731,7 @@ export class AlphaTabApiBase<TSettings> {
         this._beatVisibilityChecker.bounds = this.boundsLookup;
 
         this._currentBeat = null;
-        this._cursorUpdateTick(this._previousTick, false, 1, true, true);
+        this._cursorUpdateTick(this._previousTick, false, 1, this._player.state === PlayerState.Playing, true);
         if (this._selectionStart) {
             this.highlightPlaybackRange(this._selectionStart.beat, this._selectionEnd!.beat);
         }
