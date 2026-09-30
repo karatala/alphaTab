@@ -3360,6 +3360,10 @@ export class AlphaTabApiBase<TSettings> {
         if (!endBeat.bounds) {
             endBeat.bounds = cache.findBeat(endBeat.beat) ?? undefined;
         }
+        if (!startBeat.bounds || !endBeat.bounds) {
+            (this.playbackRangeHighlightChanged as EventEmitterOfT<PlaybackHighlightChangeEventArgs>).trigger({});
+            return;
+        }
 
         const startTick: number = this._tickCache?.getBeatStart(startBeat.beat) ?? startBeat.beat.absolutePlaybackStart;
         const endTick: number = this._tickCache?.getBeatStart(endBeat.beat) ?? endBeat.beat.absolutePlaybackStart;
