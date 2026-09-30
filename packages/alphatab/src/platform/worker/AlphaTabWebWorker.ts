@@ -9,6 +9,7 @@ import type { Staff } from '@coderline/alphatab/model/Staff';
 import { type FontSizeDefinition, FontSizes } from '@coderline/alphatab/platform/svg/FontSizes';
 import type {
     AlphaTabProjectRenderState,
+    AlphaTabRenderResultState,
     IAlphaTabWorkerGlobalScope,
     IAlphaTabWorkerMessage
 } from '@coderline/alphatab/platform/worker/AlphaTabWorkerProtocol';
@@ -27,6 +28,9 @@ export class AlphaTabWebWorker {
     private _projectId: string | null = null;
     private _revision: number = -1;
     private _boundsDeltaRange: RenderHints | null = null;
+    private _measurePerformance: boolean = false;
+    private _boundsSerializationDurationMs: number = 0;
+    private _renderMessageDurationMs: number = 0;
 
     public constructor(main: IAlphaTabWorkerGlobalScope<IAlphaTabWorkerMessage>) {
         this._main = main;
@@ -37,8 +41,17 @@ export class AlphaTabWebWorker {
         new AlphaTabWebWorker(Environment.getGlobalWorkerScope<IAlphaTabWorkerMessage>());
     }
 
-    private _renderState(): Partial<AlphaTabProjectRenderState> {
-        return this._projectId === null ? {} : { operationId: this._operationId, projectId: this._projectId, revision: this._revision };
+    private _renderState(): AlphaTabRenderResultState {
+        const projectState: Partial<AlphaTabProjectRenderState> = this._projectId === null ? {} : { operationId: this._operationId, projectId: this._projectId, revision: this._revision };
+        return this._measurePerformance ? { ...projectState, measurePerformance: true, workerSentAt: performance.timeOrigin + performance.now() } : projectState;
+    }
+
+    private _postRenderMessage(message: IAlphaTabWorkerMessage): void {
+        const messageStartedAt = this._measurePerformance ? performance.now() : 0;
+        this._main.postMessage(message);
+        if (this._measurePerformance) {
+            this._renderMessageDurationMs += performance.now() - messageStartedAt;
+        }
     }
 
     private _handleMessage(e: MessageEvent<IAlphaTabWorkerMessage>): void {
@@ -52,25 +65,30 @@ export class AlphaTabWebWorker {
                 Logger.logLevel = settings.core.logLevel;
                 this._renderer = new ScoreRenderer(settings);
                 this._renderer.partialRenderFinished.on(result => {
-                    this._main.postMessage({ ...this._renderState(), cmd: 'alphaTab.partialRenderFinished', result });
+                    this._postRenderMessage({ ...this._renderState(), cmd: 'alphaTab.partialRenderFinished', result });
                 });
                 this._renderer.partialLayoutFinished.on(result => {
-                    this._main.postMessage({ ...this._renderState(), cmd: 'alphaTab.partialLayoutFinished', result });
+                    this._postRenderMessage({ ...this._renderState(), cmd: 'alphaTab.partialLayoutFinished', result });
                 });
                 this._renderer.renderFinished.on(result => {
-                    this._main.postMessage({ ...this._renderState(), cmd: 'alphaTab.renderFinished', result });
+                    this._postRenderMessage({ ...this._renderState(), cmd: 'alphaTab.renderFinished', result });
                 });
                 this._renderer.postRenderFinished.on(() => {
+                    const boundsSerializationStartedAt = this._measurePerformance ? performance.now() : 0;
                     const boundsRange = this._boundsDeltaRange?.useBoundsDelta ? this._boundsDeltaRange : null;
                     const boundsLookup = this._renderer.boundsLookup?.toCompactJson(boundsRange?.firstChangedMasterBar, boundsRange?.lastChangedMasterBar) ?? null;
-                    this._main.postMessage({ ...this._renderState(), boundsDelta: boundsRange !== null, boundsLookup, cmd: 'alphaTab.postRenderFinished' });
+                    if (this._measurePerformance) {
+                        this._boundsSerializationDurationMs += performance.now() - boundsSerializationStartedAt;
+                    }
+                    this._postRenderMessage({ ...this._renderState(), boundsDelta: boundsRange !== null, boundsLookup, cmd: 'alphaTab.postRenderFinished' });
                 });
                 this._renderer.preRender.on(resize => {
-                    this._main.postMessage({ ...this._renderState(), cmd: 'alphaTab.preRender', resize });
+                    this._postRenderMessage({ ...this._renderState(), cmd: 'alphaTab.preRender', resize });
                 });
                 this._renderer.error.on(this._error.bind(this));
                 break;
             case 'alphaTab.render':
+                this._measurePerformance = data.renderHints?.measurePerformance === true;
                 this._renderer.render(data.renderHints);
                 break;
             case 'alphaTab.resizeRender':
@@ -83,6 +101,9 @@ export class AlphaTabWebWorker {
                 this._renderer.width = data.width;
                 break;
             case 'alphaTab.renderScore':
+                this._measurePerformance = data.renderHints?.measurePerformance === true;
+                this._boundsSerializationDurationMs = 0;
+                this._renderMessageDurationMs = 0;
                 this._boundsDeltaRange = null;
                 this._updateFontSizes(data.fontSizes);
                 const renderHints = data.renderHints;
@@ -91,6 +112,9 @@ export class AlphaTabWebWorker {
                 this._renderMultiple(score, data.trackIndexes, renderHints);
                 break;
             case 'alphaTab.renderTrackIndexes':
+                this._measurePerformance = data.renderHints?.measurePerformance === true;
+                this._boundsSerializationDurationMs = 0;
+                this._renderMessageDurationMs = 0;
                 this._boundsDeltaRange = null;
                 this._renderMultiple(this._renderer.score, data.trackIndexes, data.renderHints);
                 break;
@@ -98,6 +122,9 @@ export class AlphaTabWebWorker {
                 this._operationId = null;
                 this._projectId = data.projectId;
                 this._revision = data.revision;
+                this._measurePerformance = data.renderHints?.measurePerformance === true;
+                this._boundsSerializationDurationMs = 0;
+                this._renderMessageDurationMs = 0;
                 this._boundsDeltaRange = null;
                 this._updateFontSizes(data.fontSizes);
                 this._renderMultiple(data.score == null ? null : JsonConverter.jsObjectToScore(data.score, this._renderer.settings), data.trackIndexes, data.renderHints);
@@ -158,6 +185,7 @@ export class AlphaTabWebWorker {
             return;
         }
         try {
+            const performanceStartedAt = data.measurePerformance ? performance.now() : 0;
             const replacements: { bar: Bar; barIndex: number; staff: Staff }[] = [];
             for (const entry of data.bars) {
                 const staff = score.tracks[entry.trackIndex]?.staves[entry.staffIndex];
@@ -183,15 +211,34 @@ export class AlphaTabWebWorker {
                     bar.nextBar = barIndex + 1 < staff.bars.length ? staff.bars[barIndex + 1] : null;
                 }
             }
+            const modelUpdatedAt = data.measurePerformance ? performance.now() : 0;
             if (data.localFinish) {
                 this._finishProjectBars(replacements);
             } else {
                 score.finish(this._renderer.settings);
             }
+            const finishCompletedAt = data.measurePerformance ? performance.now() : 0;
             this._operationId = data.operationId;
             this._revision = data.revision;
-            this._boundsDeltaRange = data.renderHints;
-            this._renderMultiple(score, data.selectedTrackIndexes, data.renderHints);
+            this._measurePerformance = data.measurePerformance === true;
+            this._boundsSerializationDurationMs = 0;
+            this._renderMessageDurationMs = 0;
+            const renderHints = { ...data.renderHints, measurePerformance: this._measurePerformance };
+            this._boundsDeltaRange = renderHints;
+            this._renderMultiple(score, data.selectedTrackIndexes, renderHints);
+            if (data.measurePerformance) {
+                const renderCompletedAt = performance.now();
+                console.groupCollapsed(`[alphaTab worker performance] operation ${data.operationId}: ${(renderCompletedAt - performanceStartedAt).toFixed(2)} ms`);
+                console.table([
+                    { phase: 'bar restore and relink', durationMs: Number((modelUpdatedAt - performanceStartedAt).toFixed(2)) },
+                    { phase: 'local score finish', durationMs: Number((finishCompletedAt - modelUpdatedAt).toFixed(2)) },
+                    { phase: 'renderer work and callbacks', durationMs: Number((renderCompletedAt - finishCompletedAt - this._boundsSerializationDurationMs - this._renderMessageDurationMs).toFixed(2)) },
+                    { phase: 'bounds serialization', durationMs: Number(this._boundsSerializationDurationMs.toFixed(2)) },
+                    { phase: 'worker message cloning', durationMs: Number(this._renderMessageDurationMs.toFixed(2)) },
+                    { phase: 'worker total', durationMs: Number((renderCompletedAt - performanceStartedAt).toFixed(2)) }
+                ]);
+                console.groupEnd();
+            }
         } catch (error) {
             this._error(error as Error);
         }
@@ -199,6 +246,6 @@ export class AlphaTabWebWorker {
 
     private _error(error: Error): void {
         Logger.error('Worker', 'An unexpected error occurred in worker', error);
-        this._main.postMessage({ ...this._renderState(), cmd: 'alphaTab.error', error });
+        this._postRenderMessage({ ...this._renderState(), cmd: 'alphaTab.error', error });
     }
 }

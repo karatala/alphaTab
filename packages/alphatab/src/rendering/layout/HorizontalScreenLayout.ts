@@ -101,6 +101,7 @@ export class HorizontalScreenLayout extends ScoreLayout {
     }
 
     protected doLayoutAndRender(renderHints: RenderHints | undefined): void {
+        const performanceStartedAt = renderHints?.measurePerformance ? performance.now() : 0;
         const score: Score = this.renderer.score!;
 
         let startIndex: number = this.renderer.settings.display.startBar;
@@ -129,6 +130,10 @@ export class HorizontalScreenLayout extends ScoreLayout {
         const countPerPartial: number = this.renderer.settings.display.barCountPerPartial;
         const partials: HorizontalScreenLayoutPartialInfo[] = [];
         let currentPartial: HorizontalScreenLayoutPartialInfo = new HorizontalScreenLayoutPartialInfo();
+        let cachedReattachmentDurationMs = 0;
+        let changedRangeLayoutDurationMs = 0;
+        let cachedRendererBarCount = 0;
+        let changedRangeBarCount = 0;
         while (currentBarIndex <= endBarIndex) {
             const multiBarRestInfo = this.multiBarRestInfo;
             const additionalMultiBarsRestBarIndices: number[] | null =
@@ -137,9 +142,20 @@ export class HorizontalScreenLayout extends ScoreLayout {
                     : null;
 
             const cachedRenderers = this._cachedMasterBarRenderers?.get(currentBarIndex);
+            const barAssemblyStartedAt = renderHints?.measurePerformance ? performance.now() : 0;
             const result = cachedRenderers
                 ? this._system.addMasterBarRenderers(this.renderer.tracks!, cachedRenderers, false)!
                 : this._system.addBars(this.renderer.tracks!, currentBarIndex, additionalMultiBarsRestBarIndices);
+            if (renderHints?.measurePerformance) {
+                const barAssemblyDurationMs = performance.now() - barAssemblyStartedAt;
+                if (cachedRenderers) {
+                    cachedReattachmentDurationMs += barAssemblyDurationMs;
+                    cachedRendererBarCount++;
+                } else {
+                    changedRangeLayoutDurationMs += barAssemblyDurationMs;
+                    changedRangeBarCount++;
+                }
+            }
 
             // complete partial if its full and we are not linked
             if (currentPartial.masterBars.length >= countPerPartial && !result.isLinkedToPrevious) {
@@ -160,14 +176,20 @@ export class HorizontalScreenLayout extends ScoreLayout {
         if (currentPartial.masterBars.length > 0) {
             this._completePartial(partials, currentPartial);
         }
-        this._finalizeStaffSystem();
+        const assemblyCompletedAt = renderHints?.measurePerformance ? performance.now() : 0;
+        this._alignRenderers();
+        const alignmentCompletedAt = renderHints?.measurePerformance ? performance.now() : 0;
+        this._system.finalizeSystem();
+        const finalizationCompletedAt = renderHints?.measurePerformance ? performance.now() : 0;
 
         this.height = Math.floor(this._system.y + this._system.height);
         this.width = this._system.x + this._system.width + this.pagePadding![2];
         currentBarIndex = 0;
 
         let x = 0;
+        const boundsStartedAt = renderHints?.measurePerformance ? performance.now() : 0;
         this._system.buildBoundingsLookup(0, 0);
+        const boundsCompletedAt = renderHints?.measurePerformance ? performance.now() : 0;
         for (let i: number = 0; i < partials.length; i++) {
             const partial: HorizontalScreenLayoutPartialInfo = partials[i];
 
@@ -218,6 +240,22 @@ export class HorizontalScreenLayout extends ScoreLayout {
         this.height += this.pagePadding![3];
 
         this.height *= this.renderer.settings.display.scale;
+        if (renderHints?.measurePerformance) {
+            const completedAt = performance.now();
+            console.groupCollapsed(`[alphaTab horizontal performance] ${(completedAt - performanceStartedAt).toFixed(2)} ms`);
+            console.table([
+                { phase: 'system assembly', durationMs: Number((assemblyCompletedAt - performanceStartedAt).toFixed(2)) },
+                { phase: 'cached renderer reattachment', barCount: cachedRendererBarCount, durationMs: Number(cachedReattachmentDurationMs.toFixed(2)), millisecondsPerBar: cachedRendererBarCount === 0 ? 0 : Number((cachedReattachmentDurationMs / cachedRendererBarCount).toFixed(2)) },
+                { phase: 'changed range layout', barCount: changedRangeBarCount, durationMs: Number(changedRangeLayoutDurationMs.toFixed(2)), millisecondsPerBar: changedRangeBarCount === 0 ? 0 : Number((changedRangeLayoutDurationMs / changedRangeBarCount).toFixed(2)) },
+                { phase: 'assembly bookkeeping', durationMs: Number((assemblyCompletedAt - performanceStartedAt - cachedReattachmentDurationMs - changedRangeLayoutDurationMs).toFixed(2)) },
+                { phase: 'renderer alignment', durationMs: Number((alignmentCompletedAt - assemblyCompletedAt).toFixed(2)) },
+                { phase: 'system finalization', durationMs: Number((finalizationCompletedAt - alignmentCompletedAt).toFixed(2)) },
+                { phase: 'bounds construction', durationMs: Number((boundsCompletedAt - boundsStartedAt).toFixed(2)) },
+                { phase: 'partial registration and footer', durationMs: Number((completedAt - boundsCompletedAt).toFixed(2)) },
+                { phase: 'horizontal total', durationMs: Number((completedAt - performanceStartedAt).toFixed(2)) }
+            ]);
+            console.groupEnd();
+        }
     }
 
     private _scaleBars(result: MasterBarsRenderers) {
@@ -256,11 +294,6 @@ export class HorizontalScreenLayout extends ScoreLayout {
         const newPartial = new HorizontalScreenLayoutPartialInfo();
         newPartial.x = currentPartial.x + currentPartial.width;
         return newPartial;
-    }
-
-    private _finalizeStaffSystem() {
-        this._alignRenderers();
-        this._system!.finalizeSystem();
     }
 
     private _alignRenderers(): void {

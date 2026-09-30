@@ -36,6 +36,9 @@ export interface RenderHints {
 
     /** @internal */
     useBoundsDelta?: boolean;
+
+    /** @internal */
+    measurePerformance?: boolean;
 }
 
 /**

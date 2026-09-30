@@ -132,15 +132,35 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
                 (this.renderFinished as EventEmitterOfT<RenderFinishedEventArgs>).trigger(data.result);
                 break;
             case 'alphaTab.postRenderFinished':
+                const mainMessageStartedAt = data.measurePerformance ? performance.now() : 0;
                 const score = this._api.score;
                 const hasPendingChange = this._pendingProjectChange !== null;
+                const boundsReconstructionStartedAt = data.measurePerformance ? performance.now() : 0;
                 if (!hasPendingChange && score && data.boundsLookup) {
                     this.boundsLookup = BoundsLookup.fromCompactJson(data.boundsLookup, score, data.boundsDelta ? this.boundsLookup : null);
                 }
+                const boundsReconstructionCompletedAt = data.measurePerformance ? performance.now() : 0;
+                const boundsFinalizationCompletedAt = boundsReconstructionCompletedAt;
                 this._projectRenderInFlight = false;
                 this._dispatchPendingProjectChange();
+                const pendingDispatchCompletedAt = data.measurePerformance ? performance.now() : 0;
                 if (!hasPendingChange) {
                     (this.postRenderFinished as EventEmitter).trigger();
+                }
+                if (data.measurePerformance) {
+                    const mainMessageCompletedAt = performance.now();
+                    const workerSentAt = data.workerSentAt ?? performance.timeOrigin + mainMessageStartedAt;
+                    const workerMessageDeliveryDuration = Math.max(0, performance.timeOrigin + mainMessageStartedAt - workerSentAt);
+                    console.groupCollapsed(`[alphaTab main performance] operation ${data.operationId}: ${(mainMessageCompletedAt - mainMessageStartedAt).toFixed(2)} ms`);
+                    console.table([
+                        { phase: 'worker message delivery', durationMs: Number(workerMessageDeliveryDuration.toFixed(2)) },
+                        { phase: 'compact bounds reconstruction', durationMs: Number((boundsReconstructionCompletedAt - boundsReconstructionStartedAt).toFixed(2)) },
+                        { phase: 'bounds finalization', durationMs: Number((boundsFinalizationCompletedAt - boundsReconstructionCompletedAt).toFixed(2)) },
+                        { phase: 'pending render dispatch', durationMs: Number((pendingDispatchCompletedAt - boundsFinalizationCompletedAt).toFixed(2)) },
+                        { phase: 'post-render callbacks', durationMs: Number((mainMessageCompletedAt - pendingDispatchCompletedAt).toFixed(2)) },
+                        { phase: 'main message total', durationMs: Number((mainMessageCompletedAt - mainMessageStartedAt).toFixed(2)) }
+                    ]);
+                    console.groupEnd();
                 }
                 break;
             case 'alphaTab.projectSyncRequired':

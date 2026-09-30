@@ -28,7 +28,10 @@ export interface AlphaTabProjectBarTransfer {
     trackIndex: number;
 }
 
-type AlphaTabRenderResultState = Partial<AlphaTabProjectRenderState>;
+export type AlphaTabRenderResultState = Partial<AlphaTabProjectRenderState> & {
+    measurePerformance?: true;
+    workerSentAt?: number;
+};
 
 export type IAlphaTabWorkerMessage =
     // main -> worker

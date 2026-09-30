@@ -86,6 +86,7 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
     }
 
     public override doUpdateForBars(renderHints: RenderHints): boolean {
+        const performanceStartedAt = renderHints.measurePerformance ? performance.now() : 0;
         this._reuseViewPort = renderHints.reuseViewport ?? false;
         const firstModifiedMasterBar = renderHints.firstChangedMasterBar!;
 
@@ -116,6 +117,7 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
         const system = removeSystems[0];
         let y = system.y;
         const firstBarIndex = system.masterBarsRenderers[0].masterBar.index;
+        const invalidationCompletedAt = renderHints.measurePerformance ? performance.now() : 0;
 
         // signal all partials which didn't change
         for (const preSystemPartial of this._preSystemPartialIds) {
@@ -124,15 +126,31 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
         for (let i = 0; i < systemIndex; i++) {
             this.reregisterPartial(this._systemPartialIds[i]);
         }
+        const preservedPartialsCompletedAt = renderHints.measurePerformance ? performance.now() : 0;
 
         // new partials for all other prats
         y = this._layoutAndRenderScore(y, firstBarIndex);
+        const scoreLayoutCompletedAt = renderHints.measurePerformance ? performance.now() : 0;
 
         y = this.layoutAndRenderBottomScoreInfo(y);
 
         y = this._layoutAndRenderAnnotation(y);
 
         this.height = (y + this.pagePadding![3]) * this.renderer.settings.display.scale;
+
+        if (renderHints.measurePerformance) {
+            const completedAt = performance.now();
+            const rebuiltBarCount = this.lastBarIndex - firstBarIndex + 1;
+            console.groupCollapsed(`[alphaTab vertical performance] ${(completedAt - performanceStartedAt).toFixed(2)} ms`);
+            console.table([
+                { phase: 'system lookup and invalidation', durationMs: Number((invalidationCompletedAt - performanceStartedAt).toFixed(2)) },
+                { phase: 'preserved partial registration', durationMs: Number((preservedPartialsCompletedAt - invalidationCompletedAt).toFixed(2)) },
+                { phase: 'changed tail layout', barCount: rebuiltBarCount, durationMs: Number((scoreLayoutCompletedAt - preservedPartialsCompletedAt).toFixed(2)), millisecondsPerBar: rebuiltBarCount === 0 ? 0 : Number(((scoreLayoutCompletedAt - preservedPartialsCompletedAt) / rebuiltBarCount).toFixed(2)) },
+                { phase: 'footer and annotation', durationMs: Number((completedAt - scoreLayoutCompletedAt).toFixed(2)) },
+                { phase: 'vertical update total', durationMs: Number((completedAt - performanceStartedAt).toFixed(2)) }
+            ]);
+            console.groupEnd();
+        }
 
         return true;
     }
