@@ -1399,6 +1399,7 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
                                     zoneRegion.sampleRate = shdr.sampleRate;
 
                                     const isPercussion = phdr.bank === SynthConstants.PercussionBank;
+                                    const sampleType = shdr.sampleType & ~0x10;
 
                                     const shouldLoadSamples =
                                         (isPercussion &&
@@ -1415,13 +1416,13 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
                                             `Skipping load of unused sample ${shdr.sampleName} for preset ${phdr.presetName} (bank ${preset.bank} program ${preset.presetNumber})`
                                         );
                                         zoneRegion.samples = new Float32Array(0);
-                                    } else if ((shdr.sampleType & 0x01) !== 0) {
+                                    } else if (sampleType === 0x01 || sampleType === 0x02 || sampleType === 0x04) {
                                         Logger.debug(
                                             'AlphaSynth',
                                             `Loading of used sample ${shdr.sampleName} for preset ${phdr.presetName} (bank ${preset.bank} program ${preset.presetNumber})`
                                         );
 
-                                        // Mono Sample
+                                        // Mono, right, or left sample
                                         const decompressVorbis = (shdr.sampleType & 0x10) !== 0;
                                         if (decompressVorbis) {
                                             // for SF3 the shdr contains the byte offsets within the overall buffer holding the OGG container
@@ -1455,13 +1456,17 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
                                             }
                                         }
 
+                                        if (sampleType === 0x02) {
+                                            zoneRegion.pan = 0.5;
+                                        } else if (sampleType === 0x04) {
+                                            zoneRegion.pan = -0.5;
+                                        }
+
                                         // play whole sample
                                         zoneRegion.offset = 0;
                                         zoneRegion.end = zoneRegion.samples.length - 1;
                                     } else {
                                         // unsupported
-                                        //  0x02: // Right Sample
-                                        //  0x04: // Left Sample
                                         //  0x08: // Linked Sample
                                         //  0x8001: // RomMonoSample
                                         //  0x8002: // RomRightSample
