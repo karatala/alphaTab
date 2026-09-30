@@ -41,7 +41,11 @@
             "require": "./dist/alphaTab.vite.js"
         },
         "./soundfont/*": "./dist/soundfont/*",
-        "./font/*": "./dist/font/*"
+        "./font/*": "./dist/font/*",
+        "./*": {
+            "bun": "./src/*.ts",
+            "default": "./dist/*"
+        }
     },
     "engines": {
         "node": ">=6.0.0"
