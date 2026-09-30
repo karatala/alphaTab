@@ -5,7 +5,7 @@ import {
     type IEventEmitterOfT
 } from '@coderline/alphatab/EventEmitter';
 import type { Score } from '@coderline/alphatab/model/Score';
-import type { IScoreRenderer, RenderHints } from '@coderline/alphatab/rendering/IScoreRenderer';
+import type { IScoreRenderer, ProjectRenderChange, RenderHints } from '@coderline/alphatab/rendering/IScoreRenderer';
 import type { RenderFinishedEventArgs } from '@coderline/alphatab/rendering/RenderFinishedEventArgs';
 import type { BoundsLookup } from '@coderline/alphatab/rendering/utils/BoundsLookup';
 import type { Settings } from '@coderline/alphatab/Settings';
@@ -102,6 +102,18 @@ export class ScoreRendererWrapper implements IScoreRenderer {
         this._score = score;
         this._trackIndexes = trackIndexes;
         this._instance?.renderScore(score, trackIndexes, renderHints);
+    }
+
+    public renderProjectScore(score: Score | null, trackIndexes: number[] | null, projectId: string, revision: number, renderHints?: RenderHints): void {
+        this._score = score;
+        this._trackIndexes = trackIndexes;
+        this._instance?.renderProjectScore(score, trackIndexes, projectId, revision, renderHints);
+    }
+
+    public renderProjectChange(score: Score | null, trackIndexes: number[] | null, change: ProjectRenderChange, renderHints: RenderHints): void {
+        this._score = score;
+        this._trackIndexes = trackIndexes;
+        this._instance?.renderProjectChange(score, trackIndexes, change, renderHints);
     }
 
     public renderTrackIndexes(trackIndexes: number[] | null, renderHints?: RenderHints): void {

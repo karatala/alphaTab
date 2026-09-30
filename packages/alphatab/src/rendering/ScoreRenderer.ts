@@ -11,7 +11,7 @@ import type { Score } from '@coderline/alphatab/model/Score';
 import type { Track } from '@coderline/alphatab/model/Track';
 import type { ICanvas } from '@coderline/alphatab/platform/ICanvas';
 import { Profiler } from '@coderline/alphatab/profiling/Profiler';
-import type { IScoreRenderer, RenderHints } from '@coderline/alphatab/rendering/IScoreRenderer';
+import type { IScoreRenderer, ProjectRenderChange, RenderHints } from '@coderline/alphatab/rendering/IScoreRenderer';
 import type { ScoreLayout } from '@coderline/alphatab/rendering/layout/ScoreLayout';
 import { RenderFinishedEventArgs } from '@coderline/alphatab/rendering/RenderFinishedEventArgs';
 import { BoundsLookup } from '@coderline/alphatab/rendering/utils/BoundsLookup';
@@ -106,6 +106,14 @@ export class ScoreRenderer implements IScoreRenderer {
 
     public renderTrackIndexes(trackIndexes: number[] | null, renderHints?: RenderHints): void {
         this.renderScore(this.score, trackIndexes, renderHints);
+    }
+
+    public renderProjectScore(score: Score | null, trackIndexes: number[] | null, _projectId: string, _revision: number, renderHints?: RenderHints): void {
+        this.renderScore(score, trackIndexes, renderHints);
+    }
+
+    public renderProjectChange(score: Score | null, trackIndexes: number[] | null, _change: ProjectRenderChange, renderHints: RenderHints): void {
+        this.renderScore(score, trackIndexes, renderHints);
     }
 
     /**

@@ -147,6 +147,17 @@ export class Staff {
         return this._filledVoices;
     }
 
+    /** @internal */
+    public rebuildFilledVoices(): void {
+        this._filledVoices.clear();
+        this._filledVoices.add(0);
+        for (const bar of this.bars) {
+            for (const voiceIndex of bar.filledVoices) {
+                this._filledVoices.add(voiceIndex);
+            }
+        }
+    }
+
     public finish(settings: Settings, sharedDataBag: Map<string, unknown> | null = null): void {
         this.stringTuning.finish();
         if (this.isPercussion) {

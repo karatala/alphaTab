@@ -2,7 +2,9 @@ import type { LogLevel } from '@coderline/alphatab/LogLevel';
 import type { MidiEventType } from '@coderline/alphatab/midi/MidiEvent';
 import type { FontSizeDefinition } from '@coderline/alphatab/platform/_barrel';
 import type { RenderHints } from '@coderline/alphatab/rendering/IScoreRenderer';
+import type { ProjectRenderChange } from '@coderline/alphatab/rendering/IScoreRenderer';
 import type { RenderFinishedEventArgs } from '@coderline/alphatab/rendering/RenderFinishedEventArgs';
+import type { CompactBoundsLookup } from '@coderline/alphatab/rendering/utils/BoundsLookup';
 import type { BackingTrackSyncPoint } from '@coderline/alphatab/synth/IAlphaSynth';
 import type { AudioExportChunk, AudioExportOptions } from '@coderline/alphatab/synth/IAudioExporter';
 import type { PlaybackRange } from '@coderline/alphatab/synth/PlaybackRange';
@@ -13,6 +15,21 @@ import type { PositionChangedEventArgs } from '@coderline/alphatab/synth/Positio
  * @internal
  * @discriminated cmd alphaTab.
  */
+export interface AlphaTabProjectRenderState {
+    operationId: number | null;
+    projectId: string;
+    revision: number;
+}
+
+export interface AlphaTabProjectBarTransfer {
+    bar: Map<string, unknown>;
+    barIndex: number;
+    staffIndex: number;
+    trackIndex: number;
+}
+
+type AlphaTabRenderResultState = Partial<AlphaTabProjectRenderState>;
+
 export type IAlphaTabWorkerMessage =
     // main -> worker
     | { cmd: 'alphaTab.initialize'; settings: Map<string, unknown> }
@@ -33,13 +50,24 @@ export type IAlphaTabWorkerMessage =
           trackIndexes: number[] | null;
           renderHints: RenderHints | undefined;
       }
+    | {
+          cmd: 'alphaTab.renderProjectScore';
+          score: Map<string, unknown> | null;
+          trackIndexes: number[] | null;
+          fontSizes: Map<string, FontSizeDefinition>;
+          projectId: string;
+          revision: number;
+          renderHints: RenderHints | undefined;
+      }
+    | ({ cmd: 'alphaTab.renderProjectChange'; bars: AlphaTabProjectBarTransfer[]; renderHints: RenderHints; selectedTrackIndexes: number[] | null } & ProjectRenderChange)
     // worker -> main
-    | { cmd: 'alphaTab.preRender'; resize: boolean }
-    | { cmd: 'alphaTab.partialRenderFinished'; result: RenderFinishedEventArgs }
-    | { cmd: 'alphaTab.partialLayoutFinished'; result: RenderFinishedEventArgs }
-    | { cmd: 'alphaTab.renderFinished'; result: RenderFinishedEventArgs }
-    | { cmd: 'alphaTab.postRenderFinished'; boundsLookup: Map<string, unknown> | null }
-    | { cmd: 'alphaTab.error'; error: Error };
+    | ({ cmd: 'alphaTab.preRender'; resize: boolean } & AlphaTabRenderResultState)
+    | ({ cmd: 'alphaTab.partialRenderFinished'; result: RenderFinishedEventArgs } & AlphaTabRenderResultState)
+    | ({ cmd: 'alphaTab.partialLayoutFinished'; result: RenderFinishedEventArgs } & AlphaTabRenderResultState)
+    | ({ cmd: 'alphaTab.renderFinished'; result: RenderFinishedEventArgs } & AlphaTabRenderResultState)
+    | ({ cmd: 'alphaTab.postRenderFinished'; boundsDelta: boolean; boundsLookup: CompactBoundsLookup | null } & AlphaTabRenderResultState)
+    | { cmd: 'alphaTab.projectSyncRequired'; operationId: number; projectId: string }
+    | ({ cmd: 'alphaTab.error'; error: Error } & AlphaTabRenderResultState);
 
 /**
  * @internal

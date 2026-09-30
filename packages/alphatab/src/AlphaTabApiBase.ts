@@ -57,7 +57,7 @@ import type { IMouseEventArgs } from '@coderline/alphatab/platform/IMouseEventAr
 import type { IUiFacade } from '@coderline/alphatab/platform/IUiFacade';
 import { PlayerMode, ScrollMode } from '@coderline/alphatab/PlayerSettings';
 import { BeatContainerGlyph } from '@coderline/alphatab/rendering/glyphs/BeatContainerGlyph';
-import type { IScoreRenderer, RenderHints } from '@coderline/alphatab/rendering/IScoreRenderer';
+import type { IScoreRenderer, ProjectRenderChange, RenderHints } from '@coderline/alphatab/rendering/IScoreRenderer';
 import type { RenderFinishedEventArgs } from '@coderline/alphatab/rendering/RenderFinishedEventArgs';
 import { ScoreRenderer } from '@coderline/alphatab/rendering/ScoreRenderer';
 import { ScoreRendererWrapper } from '@coderline/alphatab/rendering/ScoreRendererWrapper';
@@ -786,6 +786,32 @@ export class AlphaTabApiBase<TSettings> {
             this._renderer.renderTrackIndexes(this._trackIndexes, renderHints);
         } else {
             this.uiFacade.canRenderChanged.on(() => this.renderTrackIndexes(trackIndexes, renderHints));
+        }
+    }
+
+    /** @internal */
+    public renderProjectScore(projectId: string, revision: number, trackIndexes: number[], renderHints?: RenderHints): void {
+        if (!this.score) {
+            return;
+        }
+        if (this.uiFacade.canRender) {
+            this._renderer.width = this.container.width;
+            this._renderer.renderProjectScore(this.score, trackIndexes, projectId, revision, renderHints);
+        } else {
+            this.uiFacade.canRenderChanged.on(() => this.renderProjectScore(projectId, revision, trackIndexes, renderHints));
+        }
+    }
+
+    /** @internal */
+    public renderProjectChange(change: ProjectRenderChange, trackIndexes: number[], renderHints: RenderHints): void {
+        if (!this.score) {
+            return;
+        }
+        if (this.uiFacade.canRender) {
+            this._renderer.width = this.container.width;
+            this._renderer.renderProjectChange(this.score, trackIndexes, change, renderHints);
+        } else {
+            this.uiFacade.canRenderChanged.on(() => this.renderProjectChange(change, trackIndexes, renderHints));
         }
     }
 

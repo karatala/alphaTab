@@ -8,15 +8,31 @@ import {
 } from '@coderline/alphatab/EventEmitter';
 import { JsonConverter } from '@coderline/alphatab/model/JsonConverter';
 import type { Score } from '@coderline/alphatab/model/Score';
+import { BarSerializer } from '@coderline/alphatab/generated/model/BarSerializer';
 import { FontSizes } from '@coderline/alphatab/platform/svg/FontSizes';
 import type {
     IAlphaTabRenderingWorker,
     IAlphaTabWorkerMessage
 } from '@coderline/alphatab/platform/worker/AlphaTabWorkerProtocol';
-import type { IScoreRenderer, RenderHints } from '@coderline/alphatab/rendering/IScoreRenderer';
+import type { IScoreRenderer, ProjectRenderChange, RenderHints } from '@coderline/alphatab/rendering/IScoreRenderer';
 import type { RenderFinishedEventArgs } from '@coderline/alphatab/rendering/RenderFinishedEventArgs';
 import { BoundsLookup } from '@coderline/alphatab/rendering/utils/BoundsLookup';
 import type { Settings } from '@coderline/alphatab/Settings';
+
+interface ProjectRenderState {
+    operationId: number | null;
+    projectId: string;
+    renderHints: RenderHints | undefined;
+    revision: number;
+    trackIndexes: number[] | null;
+}
+
+interface PendingProjectRenderChange {
+    change: ProjectRenderChange;
+    renderHints: RenderHints;
+    score: Score | null;
+    trackIndexes: number[] | null;
+}
 
 /**
  * @internal
@@ -25,6 +41,9 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
     private _api: AlphaTabApiBase<T>;
     private _worker!: IAlphaTabRenderingWorker;
     private _width: number = 0;
+    private _pendingProjectChange: PendingProjectRenderChange | null = null;
+    private _projectRenderInFlight: boolean = false;
+    private _projectState: ProjectRenderState | null = null;
 
     public boundsLookup: BoundsLookup | null = null;
 
@@ -90,6 +109,14 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
 
     private _handleWorkerMessage(e: MessageEvent<IAlphaTabWorkerMessage>): void {
         const data = e.data;
+        const state = this._projectState;
+        const operationId = 'operationId' in data ? data.operationId : undefined;
+        if ('revision' in data && data.revision !== undefined && (!state || state.projectId !== data.projectId || state.revision !== data.revision || state.operationId !== operationId)) {
+            return;
+        }
+        if ('revision' in data && data.revision !== undefined && this._pendingProjectChange && data.cmd !== 'alphaTab.postRenderFinished') {
+            return;
+        }
         const cmd = data.cmd;
         switch (cmd) {
             case 'alphaTab.preRender':
@@ -106,13 +133,26 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
                 break;
             case 'alphaTab.postRenderFinished':
                 const score = this._api.score;
-                if (score && data.boundsLookup) {
-                    this.boundsLookup = BoundsLookup.fromJson(data.boundsLookup, this._api.score!);
-                    this.boundsLookup?.finish();
+                const hasPendingChange = this._pendingProjectChange !== null;
+                if (!hasPendingChange && score && data.boundsLookup) {
+                    this.boundsLookup = BoundsLookup.fromCompactJson(data.boundsLookup, score, data.boundsDelta ? this.boundsLookup : null);
                 }
-                (this.postRenderFinished as EventEmitter).trigger();
+                this._projectRenderInFlight = false;
+                this._dispatchPendingProjectChange();
+                if (!hasPendingChange) {
+                    (this.postRenderFinished as EventEmitter).trigger();
+                }
+                break;
+            case 'alphaTab.projectSyncRequired':
+                const currentState = this._projectState;
+                if (currentState && currentState.projectId === data.projectId && currentState.operationId === data.operationId) {
+                    const pendingChange = this._pendingProjectChange;
+                    this.renderProjectScore(this._api.score, pendingChange?.trackIndexes ?? currentState.trackIndexes, currentState.projectId, pendingChange?.change.revision ?? currentState.revision, pendingChange?.renderHints ?? currentState.renderHints);
+                }
                 break;
             case 'alphaTab.error':
+                this._pendingProjectChange = null;
+                this._projectRenderInFlight = false;
                 (this.error as EventEmitterOfT<Error>).trigger(data.error);
                 break;
         }
@@ -128,6 +168,82 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
             fontSizes: FontSizes.fontSizeLookupTables,
             renderHints
         });
+    }
+
+    public renderProjectScore(score: Score | null, trackIndexes: number[] | null, projectId: string, revision: number, renderHints?: RenderHints): void {
+        this._pendingProjectChange = null;
+        this._projectRenderInFlight = true;
+        this._projectState = { operationId: null, projectId, renderHints, revision, trackIndexes };
+        const jsObject = score == null ? null : JsonConverter.scoreToJsObject(Environment.prepareForPostMessage(score));
+        this._worker.postMessage({
+            cmd: 'alphaTab.renderProjectScore',
+            fontSizes: FontSizes.fontSizeLookupTables,
+            projectId,
+            renderHints,
+            revision,
+            score: jsObject,
+            trackIndexes: Environment.prepareForPostMessage(trackIndexes)
+        });
+    }
+
+    private _postProjectChange(score: Score | null, trackIndexes: number[] | null, change: ProjectRenderChange, renderHints: RenderHints): void {
+        const bars = [];
+        for (const trackIndex of change.trackIndexes) {
+            const track = score?.tracks[trackIndex];
+            if (!track) {
+                continue;
+            }
+            for (const staff of track.staves) {
+                const lastMasterBar = Math.min(change.lastMasterBar, staff.bars.length - 1);
+                for (let barIndex = change.firstMasterBar; barIndex <= lastMasterBar; barIndex++) {
+                    bars.push({ bar: BarSerializer.toJson(staff.bars[barIndex])!, barIndex, staffIndex: staff.index, trackIndex });
+                }
+            }
+        }
+        this._projectRenderInFlight = true;
+        this._projectState = { operationId: change.operationId, projectId: change.projectId, renderHints, revision: change.revision, trackIndexes };
+        this._worker.postMessage({ ...change, bars: Environment.prepareForPostMessage(bars), cmd: 'alphaTab.renderProjectChange', renderHints, selectedTrackIndexes: Environment.prepareForPostMessage(trackIndexes) });
+    }
+
+    public renderProjectChange(score: Score | null, trackIndexes: number[] | null, change: ProjectRenderChange, renderHints: RenderHints): void {
+        if (!this._projectRenderInFlight) {
+            this._postProjectChange(score, trackIndexes, change, renderHints);
+            return;
+        }
+        const pendingChange = this._pendingProjectChange;
+        const baseRevision = this._projectState?.revision ?? change.previousRevision;
+        if (!pendingChange || pendingChange.change.projectId !== change.projectId) {
+            this._pendingProjectChange = { change: { ...change, previousRevision: baseRevision }, renderHints, score, trackIndexes };
+            return;
+        }
+        const pendingFirstChangedMasterBar = pendingChange.renderHints.firstChangedMasterBar ?? pendingChange.change.firstMasterBar;
+        const pendingLastChangedMasterBar = pendingChange.renderHints.lastChangedMasterBar ?? pendingChange.change.lastMasterBar;
+        const firstChangedMasterBar = renderHints.firstChangedMasterBar ?? change.firstMasterBar;
+        const lastChangedMasterBar = renderHints.lastChangedMasterBar ?? change.lastMasterBar;
+        this._pendingProjectChange = {
+            change: {
+                ...change,
+                firstMasterBar: Math.min(pendingChange.change.firstMasterBar, change.firstMasterBar),
+                lastMasterBar: Math.max(pendingChange.change.lastMasterBar, change.lastMasterBar),
+                previousRevision: baseRevision,
+                trackIndexes: Array.from(new Set([...pendingChange.change.trackIndexes, ...change.trackIndexes]))
+            },
+            renderHints: {
+                ...renderHints,
+                firstChangedMasterBar: Math.min(pendingFirstChangedMasterBar, firstChangedMasterBar),
+                lastChangedMasterBar: Math.max(pendingLastChangedMasterBar, lastChangedMasterBar)
+            },
+            score,
+            trackIndexes
+        };
+    }
+
+    private _dispatchPendingProjectChange(): void {
+        const pendingChange = this._pendingProjectChange;
+        this._pendingProjectChange = null;
+        if (pendingChange) {
+            this._postProjectChange(pendingChange.score, pendingChange.trackIndexes, pendingChange.change, pendingChange.renderHints);
+        }
     }
 
     public renderTrackIndexes(trackIndexes: number[] | null, renderHints?: RenderHints): void {

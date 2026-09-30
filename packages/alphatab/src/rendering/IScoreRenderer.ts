@@ -39,6 +39,22 @@ export interface RenderHints {
 }
 
 /**
+ * Describes a bounded score change sent to a renderer which keeps project state.
+ * @internal
+ */
+export interface ProjectRenderChange {
+    firstMasterBar: number;
+    lastMasterBar: number;
+    localFinish: true;
+    measurePerformance?: boolean;
+    operationId: number;
+    previousRevision: number;
+    projectId: string;
+    revision: number;
+    trackIndexes: number[];
+}
+
+/**
  * Represents the public interface of the component that can render scores.
  * @public
  */
@@ -91,6 +107,12 @@ export interface IScoreRenderer {
      * @since 0.9.6
      */
     renderScore(score: Score | null, trackIndexes: number[] | null, renderHints?: RenderHints): void;
+
+    /** @internal */
+    renderProjectScore(score: Score | null, trackIndexes: number[] | null, projectId: string, revision: number, renderHints?: RenderHints): void;
+
+    /** @internal */
+    renderProjectChange(score: Score | null, trackIndexes: number[] | null, change: ProjectRenderChange, renderHints: RenderHints): void;
 
     /**
      * Initiates the rendering of tracks from the currently loaded score.
