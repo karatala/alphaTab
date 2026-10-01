@@ -1448,6 +1448,24 @@ export class AlphaTabApiBase<TSettings> {
         this._player.metronomeVolume = value;
     }
 
+    /** The percussion key used for regular metronome beats. */
+    public get metronomeBeatKey(): number {
+        return this._player.metronomeBeatKey;
+    }
+
+    public set metronomeBeatKey(value: number) {
+        this._player.metronomeBeatKey = value;
+    }
+
+    /** The percussion key used for the first beat of a bar. */
+    public get metronomeAccentKey(): number {
+        return this._player.metronomeAccentKey;
+    }
+
+    public set metronomeAccentKey(value: number) {
+        this._player.metronomeAccentKey = value;
+    }
+
     /**
      * The volume of the count-in metronome ticks.
      * @remarks
@@ -1482,6 +1500,15 @@ export class AlphaTabApiBase<TSettings> {
 
     public set countInVolume(value: number) {
         this._player.countInVolume = value;
+    }
+
+    /** The number of bars played before normal playback starts. */
+    public get countInBars(): number {
+        return this._player.countInBars;
+    }
+
+    public set countInBars(value: number) {
+        this._player.countInBars = value;
     }
 
     /**

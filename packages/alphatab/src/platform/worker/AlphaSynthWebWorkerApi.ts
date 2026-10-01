@@ -40,7 +40,10 @@ export class AlphaSynthWebWorkerApi implements IAlphaSynth {
     private _state: PlayerState = PlayerState.Paused;
     private _masterVolume: number = 0;
     private _metronomeVolume: number = 0;
+    private _metronomeBeatKey: number = SynthConstants.MetronomeKey;
+    private _metronomeAccentKey: number = 34;
     private _countInVolume: number = 0;
+    private _countInBars: number = 1;
     private _playbackSpeed: number = 0;
     private _isLooping: boolean = false;
     private _playbackRange: PlaybackRange | null = null;
@@ -105,6 +108,27 @@ export class AlphaSynthWebWorkerApi implements IAlphaSynth {
             value: value
         });
     }
+
+    public get metronomeBeatKey(): number {
+        return this._metronomeBeatKey;
+    }
+
+    public set metronomeBeatKey(value: number) {
+        value = ModelUtils.clamp(value | 0, 0, 127);
+        this._metronomeBeatKey = value;
+        this._synth.postMessage({ cmd: 'alphaSynth.setMetronomeBeatKey', value });
+    }
+
+    public get metronomeAccentKey(): number {
+        return this._metronomeAccentKey;
+    }
+
+    public set metronomeAccentKey(value: number) {
+        value = ModelUtils.clamp(value | 0, 0, 127);
+        this._metronomeAccentKey = value;
+        this._synth.postMessage({ cmd: 'alphaSynth.setMetronomeAccentKey', value });
+    }
+
     public get countInVolume(): number {
         return this._countInVolume;
     }
@@ -116,6 +140,16 @@ export class AlphaSynthWebWorkerApi implements IAlphaSynth {
             cmd: 'alphaSynth.setCountInVolume',
             value: value
         });
+    }
+
+    public get countInBars(): number {
+        return this._countInBars;
+    }
+
+    public set countInBars(value: number) {
+        value = Math.max(1, value | 0);
+        this._countInBars = value;
+        this._synth.postMessage({ cmd: 'alphaSynth.setCountInBars', value });
     }
 
     public get midiEventsPlayedFilter(): MidiEventType[] {
@@ -255,6 +289,9 @@ export class AlphaSynthWebWorkerApi implements IAlphaSynth {
         this.masterVolume = 1;
         this.playbackSpeed = 1;
         this.metronomeVolume = 0;
+        this.metronomeBeatKey = SynthConstants.MetronomeKey;
+        this.metronomeAccentKey = 34;
+        this.countInBars = 1;
     }
 
     public destroy(): void {

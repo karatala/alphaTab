@@ -103,12 +103,15 @@ export type IAlphaSynthWorkerMessage =
     | { cmd: 'alphaSynth.setLogLevel'; value: LogLevel }
     | { cmd: 'alphaSynth.setMasterVolume'; value: number }
     | { cmd: 'alphaSynth.setMetronomeVolume'; value: number }
+    | { cmd: 'alphaSynth.setMetronomeBeatKey'; value: number }
+    | { cmd: 'alphaSynth.setMetronomeAccentKey'; value: number }
     | { cmd: 'alphaSynth.setPlaybackSpeed'; value: number }
     | { cmd: 'alphaSynth.setTickPosition'; value: number }
     | { cmd: 'alphaSynth.setTimePosition'; value: number }
     | { cmd: 'alphaSynth.setPlaybackRange'; value: PlaybackRange | null }
     | { cmd: 'alphaSynth.setIsLooping'; value: boolean }
     | { cmd: 'alphaSynth.setCountInVolume'; value: number }
+    | { cmd: 'alphaSynth.setCountInBars'; value: number }
     | { cmd: 'alphaSynth.setMidiEventsPlayedFilter'; value: MidiEventType[] }
     | { cmd: 'alphaSynth.play' }
     | { cmd: 'alphaSynth.pause' }

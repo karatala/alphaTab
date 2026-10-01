@@ -35,7 +35,10 @@ export class AlphaSynthWrapper implements IAlphaSynth {
     // relevant state information we want to remember when switching between player instances
     private _masterVolume: number = 1;
     private _metronomeVolume: number = 0;
+    private _metronomeBeatKey: number = SynthConstants.MetronomeKey;
+    private _metronomeAccentKey: number = 34;
     private _countInVolume: number = 0;
+    private _countInBars: number = 1;
     private _playbackSpeed: number = 1;
     private _isLooping: boolean = false;
     private _midiEventsPlayedFilter: MidiEventType[] = [];
@@ -132,7 +135,10 @@ export class AlphaSynthWrapper implements IAlphaSynth {
             if (this.isReady) {
                 value.masterVolume = this._masterVolume;
                 value.metronomeVolume = this._metronomeVolume;
+                value.metronomeBeatKey = this._metronomeBeatKey;
+                value.metronomeAccentKey = this._metronomeAccentKey;
                 value.countInVolume = this._countInVolume;
+                value.countInBars = this._countInBars;
                 value.playbackSpeed = this._playbackSpeed;
                 value.isLooping = this._isLooping;
                 value.midiEventsPlayedFilter = this._midiEventsPlayedFilter;
@@ -142,7 +148,10 @@ export class AlphaSynthWrapper implements IAlphaSynth {
                     value.ready.on(() => {
                         value.masterVolume = this._masterVolume;
                         value.metronomeVolume = this._metronomeVolume;
+                        value.metronomeBeatKey = this._metronomeBeatKey;
+                        value.metronomeAccentKey = this._metronomeAccentKey;
                         value.countInVolume = this._countInVolume;
+                        value.countInBars = this._countInBars;
                         value.playbackSpeed = this._playbackSpeed;
                         value.isLooping = this._isLooping;
                         value.midiEventsPlayedFilter = this._midiEventsPlayedFilter;
@@ -203,6 +212,24 @@ export class AlphaSynthWrapper implements IAlphaSynth {
         if (this._instance) {
             this._instance!.metronomeVolume = value;
         }
+    }
+
+    public get metronomeBeatKey(): number {
+        return this._metronomeBeatKey;
+    }
+
+    public set metronomeBeatKey(value: number) {
+        this._metronomeBeatKey = value;
+        if (this._instance) this._instance.metronomeBeatKey = value;
+    }
+
+    public get metronomeAccentKey(): number {
+        return this._metronomeAccentKey;
+    }
+
+    public set metronomeAccentKey(value: number) {
+        this._metronomeAccentKey = value;
+        if (this._instance) this._instance.metronomeAccentKey = value;
     }
 
     public get playbackSpeed(): number {
@@ -275,6 +302,15 @@ export class AlphaSynthWrapper implements IAlphaSynth {
         if (this._instance) {
             this._instance.countInVolume = value;
         }
+    }
+
+    public get countInBars(): number {
+        return this._countInBars;
+    }
+
+    public set countInBars(value: number) {
+        this._countInBars = value;
+        if (this._instance) this._instance.countInBars = value;
     }
 
     public get midiEventsPlayedFilter(): MidiEventType[] {

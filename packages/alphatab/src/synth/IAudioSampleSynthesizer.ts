@@ -71,7 +71,7 @@ export interface IAudioSampleSynthesizer {
      * @param metronomeChannel The midi hannel to use for playing the metronome (to avoid overlaps with instruments).
      * @param metronomeVolume The volume for the channel.
      */
-    setupMetronomeChannel(metronomeChannel: number, metronomeVolume: number): void;
+    setupMetronomeChannel(metronomeChannel: number, metronomeVolume: number, beatKey?: number, accentKey?: number): void;
 
     /**
      * Synthesizes the given number of samples without producing an output (e.g. on seeking)

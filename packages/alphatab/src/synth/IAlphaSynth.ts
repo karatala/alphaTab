@@ -106,6 +106,12 @@ export interface IAlphaSynth {
      */
     metronomeVolume: number;
 
+    /** Gets or sets the percussion key used for regular metronome beats. */
+    metronomeBeatKey: number;
+
+    /** Gets or sets the percussion key used for the first beat of a bar. */
+    metronomeAccentKey: number;
+
     /**
      * Gets or sets the current playback speed as percentage. (range: 0.125-8.0, default: 1.0)
      */
@@ -147,6 +153,9 @@ export interface IAlphaSynth {
      * @since 1.1.0
      */
     countInVolume: number;
+
+    /** Gets or sets the number of bars played during count-in. */
+    countInBars: number;
 
     /**
      * Gets or sets the midi events which will trigger the `midiEventsPlayed` event.

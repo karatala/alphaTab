@@ -53,7 +53,10 @@ export class AlphaSynthBase implements IAlphaSynth {
     private _tickPosition: number = 0;
     private _timePosition: number = 0;
     private _metronomeVolume: number = 0;
+    private _metronomeBeatKey: number = SynthConstants.MetronomeKey;
+    private _metronomeAccentKey: number = 34;
     private _countInVolume: number = 0;
+    private _countInBars: number = 1;
 
     /**
      * @internal
@@ -109,6 +112,24 @@ export class AlphaSynthBase implements IAlphaSynth {
         this.synthesizer.metronomeVolume = value;
     }
 
+    public get metronomeBeatKey(): number {
+        return this._metronomeBeatKey;
+    }
+
+    public set metronomeBeatKey(value: number) {
+        this._metronomeBeatKey = ModelUtils.clamp(value | 0, 0, 127);
+        this.synthesizer.setupMetronomeChannel(this.sequencer.metronomeChannel, this._metronomeVolume, this._metronomeBeatKey, this._metronomeAccentKey);
+    }
+
+    public get metronomeAccentKey(): number {
+        return this._metronomeAccentKey;
+    }
+
+    public set metronomeAccentKey(value: number) {
+        this._metronomeAccentKey = ModelUtils.clamp(value | 0, 0, 127);
+        this.synthesizer.setupMetronomeChannel(this.sequencer.metronomeChannel, this._metronomeVolume, this._metronomeBeatKey, this._metronomeAccentKey);
+    }
+
     public get countInVolume(): number {
         return this._countInVolume;
     }
@@ -116,6 +137,14 @@ export class AlphaSynthBase implements IAlphaSynth {
     public set countInVolume(value: number) {
         value = Math.max(value, SynthConstants.MinVolume);
         this._countInVolume = value;
+    }
+
+    public get countInBars(): number {
+        return this._countInBars;
+    }
+
+    public set countInBars(value: number) {
+        this._countInBars = Math.max(1, value | 0);
     }
 
     public get midiEventsPlayedFilter(): MidiEventType[] {
@@ -323,8 +352,8 @@ export class AlphaSynthBase implements IAlphaSynth {
 
         if (this._countInVolume > 0) {
             Logger.debug('AlphaSynth', 'Starting countin');
-            this.sequencer.startCountIn();
-            this.synthesizer.setupMetronomeChannel(this.sequencer.metronomeChannel, this._countInVolume);
+            this.sequencer.startCountIn(this._countInBars);
+            this.synthesizer.setupMetronomeChannel(this.sequencer.metronomeChannel, this._countInVolume, this._metronomeBeatKey, this._metronomeAccentKey);
             this.updateTimePosition(0, true);
         }
 
@@ -339,7 +368,7 @@ export class AlphaSynthBase implements IAlphaSynth {
         }
 
         Logger.debug('AlphaSynth', 'Starting playback');
-        this.synthesizer.setupMetronomeChannel(this.sequencer.metronomeChannel, this.metronomeVolume);
+        this.synthesizer.setupMetronomeChannel(this.sequencer.metronomeChannel, this.metronomeVolume, this._metronomeBeatKey, this._metronomeAccentKey);
         this._synthStopping = false;
         this.state = PlayerState.Playing;
         (this.stateChanged as EventEmitterOfT<PlayerStateChangedEventArgs>).trigger(
@@ -444,7 +473,7 @@ export class AlphaSynthBase implements IAlphaSynth {
 
     private _checkReadyForPlayback(): void {
         if (this.isReadyForPlayback) {
-            this.synthesizer.setupMetronomeChannel(this.sequencer.metronomeChannel, this.metronomeVolume);
+            this.synthesizer.setupMetronomeChannel(this.sequencer.metronomeChannel, this.metronomeVolume, this._metronomeBeatKey, this._metronomeAccentKey);
             const programs = this.sequencer.instrumentPrograms;
             const percussionKeys = this.sequencer.percussionKeys;
             let append = false;

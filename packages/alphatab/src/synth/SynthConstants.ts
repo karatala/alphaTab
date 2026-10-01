@@ -9,6 +9,7 @@
 export class SynthConstants {
     public static readonly DefaultChannelCount: number = 16 + 1;
     public static readonly MetronomeKey: number = 33;
+    public static readonly MetronomeKeys: readonly number[] = [33, 34, 37, 42, 56, 76];
     public static readonly AudioChannels: number = 2;
     public static readonly MinVolume: number = 0;
     public static readonly MinProgram: number = 0;

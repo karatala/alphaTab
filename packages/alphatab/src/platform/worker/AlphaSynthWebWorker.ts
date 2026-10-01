@@ -70,6 +70,12 @@ export class AlphaSynthWebWorker {
             case 'alphaSynth.setMetronomeVolume':
                 this._player.metronomeVolume = data.value;
                 break;
+            case 'alphaSynth.setMetronomeBeatKey':
+                this._player.metronomeBeatKey = data.value;
+                break;
+            case 'alphaSynth.setMetronomeAccentKey':
+                this._player.metronomeAccentKey = data.value;
+                break;
             case 'alphaSynth.setPlaybackSpeed':
                 this._player.playbackSpeed = data.value;
                 break;
@@ -87,6 +93,9 @@ export class AlphaSynthWebWorker {
                 break;
             case 'alphaSynth.setCountInVolume':
                 this._player.countInVolume = data.value;
+                break;
+            case 'alphaSynth.setCountInBars':
+                this._player.countInBars = data.value;
                 break;
             case 'alphaSynth.setMidiEventsPlayedFilter':
                 this._player.midiEventsPlayedFilter = data.value;

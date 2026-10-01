@@ -225,7 +225,7 @@ export class MidiFileSequencer {
     public createStateFromFile(midiFile: MidiFile): MidiSequencerState {
         const state = new MidiSequencerState();
 
-        this.percussionKeys.add(SynthConstants.MetronomeKey); // Metronome
+        for (const metronomeKey of SynthConstants.MetronomeKeys) this.percussionKeys.add(metronomeKey);
 
         state.tempoChanges = [];
 
@@ -664,15 +664,15 @@ export class MidiFileSequencer {
         this._currentState = this._mainState;
     }
 
-    public startCountIn() {
-        this.generateCountInMidi();
+    public startCountIn(barCount: number) {
+        this.generateCountInMidi(barCount);
         this._currentState = this._countInState!;
 
         this.stop();
         this._synthesizer.noteOffAll(true);
     }
 
-    generateCountInMidi() {
+    generateCountInMidi(barCount: number) {
         const state = new MidiSequencerState();
         state.division = this._mainState.division;
 
@@ -696,11 +696,11 @@ export class MidiFileSequencer {
         let metronomeTick: number = 0;
         let metronomeTime: number = 0.0;
 
-        for (let i = 0; i < timeSignatureNumerator; i++) {
+        for (let beatIndex = 0; beatIndex < timeSignatureNumerator * barCount; beatIndex++) {
             const metronome: SynthEvent = SynthEvent.newMetronomeEvent(
                 state.synthData.length,
                 metronomeTick,
-                i,
+                beatIndex % timeSignatureNumerator,
                 metronomeLengthInTicks,
                 metronomeLengthInMillis
             );

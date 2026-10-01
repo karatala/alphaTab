@@ -65,6 +65,8 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
     public timeSignatureNumerator: number = 0;
     public timeSignatureDenominator: number = 0;
     private _metronomeChannel: number = SynthConstants.DefaultChannelCount - 1;
+    private _metronomeBeatKey: number = SynthConstants.MetronomeKey;
+    private _metronomeAccentKey: number = 34;
 
     public constructor(sampleRate: number) {
         this.outSampleRate = sampleRate;
@@ -196,8 +198,11 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
         while (!this._midiEventQueue.isEmpty) {
             const m: SynthEvent = this._midiEventQueue.dequeue()!;
             if (m.isMetronome && this.metronomeVolume > 0) {
-                this.channelNoteOff(this._metronomeChannel, SynthConstants.MetronomeKey);
-                this.channelNoteOn(this._metronomeChannel, SynthConstants.MetronomeKey, 95 / 127);
+                const metronomeEvent = m.event as AlphaTabMetronomeEvent;
+                const metronomeKey = metronomeEvent.metronomeNumerator === 0 ? this._metronomeAccentKey : this._metronomeBeatKey;
+                this.channelNoteOff(this._metronomeChannel, this._metronomeBeatKey);
+                if (this._metronomeAccentKey !== this._metronomeBeatKey) this.channelNoteOff(this._metronomeChannel, this._metronomeAccentKey);
+                this.channelNoteOn(this._metronomeChannel, metronomeKey, 95 / 127);
             } else if (m.event) {
                 this.processMidiMessage(m.event);
             }
@@ -276,8 +281,10 @@ export class TinySoundFont implements IAudioSampleSynthesizer {
         this.setupMetronomeChannel(this._metronomeChannel, value);
     }
 
-    public setupMetronomeChannel(channel:number, volume: number): void {
+    public setupMetronomeChannel(channel: number, volume: number, beatKey?: number, accentKey?: number): void {
         this._metronomeChannel = channel;
+        if (beatKey !== undefined) this._metronomeBeatKey = beatKey;
+        if (accentKey !== undefined) this._metronomeAccentKey = accentKey;
         this.channelSetMixVolume(channel, volume);
         if (volume > 0) {
             this.channelSetVolume(channel, 1);
