@@ -1,4 +1,5 @@
 import { AccentuationType } from '@coderline/alphatab/model/AccentuationType';
+import type { Bar } from '@coderline/alphatab/model/Bar';
 import type { Beat } from '@coderline/alphatab/model/Beat';
 import { BendPoint } from '@coderline/alphatab/model/BendPoint';
 import { BendStyle } from '@coderline/alphatab/model/BendStyle';
@@ -1192,6 +1193,23 @@ export class Note {
 
     private static _noteIdLookupKey = 'NoteIdLookup';
 
+    private static _findNoteByIdInCurrentOrPreviousBars(note: Note, noteId: number): Note | null {
+        let currentBar: Bar | null = note.beat.voice.bar;
+        while (currentBar) {
+            for (const voice of currentBar.voices) {
+                for (const beat of voice.beats) {
+                    for (const candidateNote of beat.notes) {
+                        if (candidateNote.id === noteId) {
+                            return candidateNote;
+                        }
+                    }
+                }
+            }
+            currentBar = currentBar.previousBar;
+        }
+        return null;
+    }
+
     private _noteIdBag: NoteIdBag | null = null;
     public chain(sharedDataBag: Map<string, unknown> | null = null) {
         // mainly for backwards compat in case we reach this code from somewhere outside.
@@ -1225,21 +1243,35 @@ export class Note {
             // on any effect destiniation, lookup the origin which should already be
             // registered
             if (this._noteIdBag.hammerPullOriginNoteId !== -1) {
-                this.hammerPullOrigin = noteIdLookup.get(this._noteIdBag.hammerPullOriginNoteId)!;
-                this.hammerPullOrigin.hammerPullDestination = this;
+                const hammerPullOrigin = noteIdLookup.get(this._noteIdBag.hammerPullOriginNoteId) ?? Note._findNoteByIdInCurrentOrPreviousBars(this, this._noteIdBag.hammerPullOriginNoteId);
+                if (hammerPullOrigin) {
+                    this.hammerPullOrigin = hammerPullOrigin;
+                    hammerPullOrigin.hammerPullDestination = this;
+                }
             }
             if (this._noteIdBag.tieOriginNoteId !== -1) {
-                this.tieOrigin = noteIdLookup.get(this._noteIdBag.tieOriginNoteId)!;
-                this.tieOrigin.tieDestination = this;
+                const tieOrigin = noteIdLookup.get(this._noteIdBag.tieOriginNoteId) ?? Note._findNoteByIdInCurrentOrPreviousBars(this, this._noteIdBag.tieOriginNoteId);
+                if (tieOrigin) {
+                    this.tieOrigin = tieOrigin;
+                    tieOrigin.tieDestination = this;
+                } else {
+                    this.isTieDestination = false;
+                }
             }
             if (this._noteIdBag.slurOriginNoteId !== -1) {
-                this.slurOrigin = noteIdLookup.get(this._noteIdBag.slurOriginNoteId)!;
-                this.slurOrigin.slurDestination = this;
+                const slurOrigin = noteIdLookup.get(this._noteIdBag.slurOriginNoteId) ?? Note._findNoteByIdInCurrentOrPreviousBars(this, this._noteIdBag.slurOriginNoteId);
+                if (slurOrigin) {
+                    this.slurOrigin = slurOrigin;
+                    slurOrigin.slurDestination = this;
+                }
             }
 
             if (this._noteIdBag.slideOriginNoteId !== -1) {
-                this.slideOrigin = noteIdLookup.get(this._noteIdBag.slideOriginNoteId)!;
-                this.slideOrigin.slideTarget = this;
+                const slideOrigin = noteIdLookup.get(this._noteIdBag.slideOriginNoteId) ?? Note._findNoteByIdInCurrentOrPreviousBars(this, this._noteIdBag.slideOriginNoteId);
+                if (slideOrigin) {
+                    this.slideOrigin = slideOrigin;
+                    slideOrigin.slideTarget = this;
+                }
             }
 
             this._noteIdBag = null; // not needed anymore
