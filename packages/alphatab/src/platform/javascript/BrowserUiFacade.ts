@@ -680,6 +680,7 @@ export class BrowserUiFacade implements IUiFacade<unknown> {
                 placeholder = document.createElement('div') as unknown as ResultPlaceholder;
                 canvasElement.appendChild(placeholder);
             }
+            const reuseRenderedResult = renderResult.reuseViewport && placeholder.renderedResultId === renderResult.id;
             placeholder.style.zIndex = '1';
             placeholder.style.position = 'absolute';
             placeholder.style.left = `${renderResult.x}px`;
@@ -688,12 +689,13 @@ export class BrowserUiFacade implements IUiFacade<unknown> {
             placeholder.style.height = `${renderResult.height}px`;
             placeholder.style.display = 'inline-block';
             placeholder.layoutResultId = renderResult.id;
-            placeholder.resultState = ResultState.LayoutDone;
-            placeholder.renderedResultId = undefined;
-            placeholder.renderedResult = undefined;
-
-            if (!renderResult.reuseViewport) {
-                placeholder.textContent = '';
+            if (!reuseRenderedResult) {
+                placeholder.resultState = ResultState.LayoutDone;
+                placeholder.renderedResultId = undefined;
+                placeholder.renderedResult = undefined;
+                if (!renderResult.reuseViewport) {
+                    placeholder.textContent = '';
+                }
             }
             this._resultIdToElementLookup.set(renderResult.id, placeholder);
 
