@@ -108,6 +108,7 @@ export class AlphaTabWebWorker {
                 this._renderer.width = data.width;
                 break;
             case 'alphaTab.renderScore':
+                const scoreRenderStartedAt = data.renderHints?.measurePerformance ? performance.now() : 0;
                 this._measurePerformance = data.renderHints?.measurePerformance === true;
                 this._boundsSerializationDurationMs = 0;
                 this._renderMessageDurationMs = 0;
@@ -116,16 +117,22 @@ export class AlphaTabWebWorker {
                 const renderHints = data.renderHints;
                 const score =
                     data.score == null ? null : JsonConverter.jsObjectToScore(data.score, this._renderer.settings);
+                const scoreModelPreparedAt = this._measurePerformance ? performance.now() : 0;
                 this._renderMultiple(score, data.trackIndexes, renderHints);
+                this._logCompleteRenderPerformance('score', scoreRenderStartedAt, scoreModelPreparedAt);
                 break;
             case 'alphaTab.renderTrackIndexes':
+                const trackRenderStartedAt = data.renderHints?.measurePerformance ? performance.now() : 0;
                 this._measurePerformance = data.renderHints?.measurePerformance === true;
                 this._boundsSerializationDurationMs = 0;
                 this._renderMessageDurationMs = 0;
                 this._boundsDeltaRange = null;
+                const trackModelPreparedAt = this._measurePerformance ? performance.now() : 0;
                 this._renderMultiple(this._renderer.score, data.trackIndexes, data.renderHints);
+                this._logCompleteRenderPerformance('track indexes', trackRenderStartedAt, trackModelPreparedAt);
                 break;
             case 'alphaTab.renderProjectScore':
+                const projectRenderStartedAt = data.renderHints?.measurePerformance ? performance.now() : 0;
                 this._operationId = null;
                 this._projectId = data.projectId;
                 this._revision = data.revision;
@@ -134,7 +141,10 @@ export class AlphaTabWebWorker {
                 this._renderMessageDurationMs = 0;
                 this._boundsDeltaRange = null;
                 this._updateFontSizes(data.fontSizes);
-                this._renderMultiple(data.score == null ? null : JsonConverter.jsObjectToScore(data.score, this._renderer.settings), data.trackIndexes, data.renderHints);
+                const projectScore = data.score == null ? null : JsonConverter.jsObjectToScore(data.score, this._renderer.settings);
+                const projectModelPreparedAt = this._measurePerformance ? performance.now() : 0;
+                this._renderMultiple(projectScore, data.trackIndexes, data.renderHints);
+                this._logCompleteRenderPerformance('project score', projectRenderStartedAt, projectModelPreparedAt);
                 break;
             case 'alphaTab.renderProjectChange':
                 this._applyProjectChange(data);
@@ -161,6 +171,22 @@ export class AlphaTabWebWorker {
         } catch (e) {
             this._error(e as Error);
         }
+    }
+
+    private _logCompleteRenderPerformance(label: string, performanceStartedAt: number, modelPreparedAt: number): void {
+        if (!this._measurePerformance) {
+            return;
+        }
+        const completedAt = performance.now();
+        console.groupCollapsed(`[alphaTab worker performance] ${label}: ${(completedAt - performanceStartedAt).toFixed(2)} ms`);
+        console.table([
+            { phase: 'score reconstruction', durationMs: Number((modelPreparedAt - performanceStartedAt).toFixed(2)) },
+            { phase: 'renderer work and callbacks', durationMs: Number((completedAt - modelPreparedAt - this._boundsSerializationDurationMs - this._renderMessageDurationMs).toFixed(2)) },
+            { phase: 'bounds serialization', durationMs: Number(this._boundsSerializationDurationMs.toFixed(2)) },
+            { phase: 'worker message cloning', durationMs: Number(this._renderMessageDurationMs.toFixed(2)) },
+            { phase: 'worker total', durationMs: Number((completedAt - performanceStartedAt).toFixed(2)) }
+        ]);
+        console.groupEnd();
     }
 
     private _finishProjectBars(replacements: { bar: Bar; barIndex: number; staff: Staff }[]): void {

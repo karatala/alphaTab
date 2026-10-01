@@ -204,10 +204,12 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
     }
 
     public renderProjectScore(score: Score | null, trackIndexes: number[] | null, projectId: string, revision: number, renderHints?: RenderHints): void {
+        const performanceStartedAt = renderHints?.measurePerformance ? performance.now() : 0;
         this._pendingProjectChange = null;
         this._projectRenderInFlight = true;
         this._projectState = { operationId: null, projectId, renderHints, revision, trackIndexes };
         const jsObject = score == null ? null : JsonConverter.scoreToJsObject(Environment.prepareForPostMessage(score));
+        const serializationCompletedAt = renderHints?.measurePerformance ? performance.now() : 0;
         this._worker.postMessage({
             cmd: 'alphaTab.renderProjectScore',
             fontSizes: FontSizes.fontSizeLookupTables,
@@ -217,6 +219,16 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
             score: jsObject,
             trackIndexes: Environment.prepareForPostMessage(trackIndexes)
         });
+        if (renderHints?.measurePerformance) {
+            const completedAt = performance.now();
+            console.groupCollapsed(`[alphaTab request performance] project score: ${(completedAt - performanceStartedAt).toFixed(2)} ms`);
+            console.table([
+                { phase: 'score serialization', durationMs: Number((serializationCompletedAt - performanceStartedAt).toFixed(2)) },
+                { phase: 'worker postMessage', durationMs: Number((completedAt - serializationCompletedAt).toFixed(2)) },
+                { phase: 'request total', durationMs: Number((completedAt - performanceStartedAt).toFixed(2)) }
+            ]);
+            console.groupEnd();
+        }
     }
 
     private _postProjectChange(score: Score | null, trackIndexes: number[] | null, change: ProjectRenderChange, renderHints: RenderHints): void {
@@ -280,11 +292,16 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
     }
 
     public renderTrackIndexes(trackIndexes: number[] | null, renderHints?: RenderHints): void {
+        const performanceStartedAt = renderHints?.measurePerformance ? performance.now() : 0;
         this._worker.postMessage({
             cmd: 'alphaTab.renderTrackIndexes',
             trackIndexes: Environment.prepareForPostMessage(trackIndexes),
             renderHints: renderHints
         });
+        if (renderHints?.measurePerformance) {
+            const completedAt = performance.now();
+            console.debug(`[alphaTab request performance] track indexes: ${(completedAt - performanceStartedAt).toFixed(2)} ms`);
+        }
     }
 
     public readonly preRender: IEventEmitterOfT<boolean> = new EventEmitterOfT<boolean>();
