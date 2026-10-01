@@ -167,6 +167,7 @@ export class AlphaTabApiBase<TSettings> {
     private _isDestroyed: boolean = false;
     private _deferMidiUntilExplicitLoad: boolean = false;
     private _isScoreLoadedEventActive: boolean = false;
+    private _midiLoadRequested: boolean = false;
     private _scoreLoadRenderRequested: boolean = false;
     private _score: Score | null = null;
     private _tracks: Track[] = [];
@@ -447,7 +448,7 @@ export class AlphaTabApiBase<TSettings> {
         const player = new AlphaSynthWrapper();
         this._player = player;
         player.ready.on(() => {
-            if (!this._deferMidiUntilExplicitLoad) {
+            if (!this._deferMidiUntilExplicitLoad && !this._midiLoadRequested) {
                 this.loadMidiForScore();
             }
         });
@@ -836,6 +837,7 @@ export class AlphaTabApiBase<TSettings> {
             }
             this._trackIndexLookup = new Set<number>(this._trackIndexes);
             this._deferMidiUntilExplicitLoad = false;
+            this._midiLoadRequested = false;
             this._scoreLoadRenderRequested = false;
             this._isScoreLoadedEventActive = true;
             try {
@@ -1817,6 +1819,7 @@ export class AlphaTabApiBase<TSettings> {
             return;
         }
         this._deferMidiUntilExplicitLoad = false;
+        this._midiLoadRequested = true;
 
         const score = this.score!;
 
