@@ -108,12 +108,8 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
         this._barsFromPreviousSystem = [];
         this.beamingRuleLookups.clear();
         const removedPartialIds = this._systemPartialIds.splice(systemIndex, this._systemPartialIds.length - systemIndex);
-        for (const removedPartialId of removedPartialIds) {
-            this._lazyPartials.delete(removedPartialId);
-        }
         this._allMasterBarRenderers = this._systems.flatMap(system => system.masterBarsRenderers);
         renderHints.firstChangedMasterBar = firstBarIndex;
-        renderHints.lastChangedMasterBar = this.lastBarIndex;
         renderHints.useBoundsDelta = true;
         const invalidationCompletedAt = renderHints.measurePerformance ? performance.now() : 0;
 
@@ -126,7 +122,59 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
         }
         const preservedPartialsCompletedAt = renderHints.measurePerformance ? performance.now() : 0;
 
-        y = this._layoutAndRenderScore(y, firstBarIndex);
+        let currentBarIndex = firstBarIndex;
+        let rebuiltSystemCount = 0;
+        let contextIsStable = false;
+        while (currentBarIndex <= this.lastBarIndex) {
+            const layoutResult = this._layoutAndRenderNextSystem(y, currentBarIndex);
+            y = layoutResult.y;
+            currentBarIndex = layoutResult.nextBarIndex;
+            rebuiltSystemCount++;
+            const previousSystemAtPosition = removedSystems[rebuiltSystemCount - 1];
+            if (rebuiltSystemCount >= 2 && previousSystemAtPosition && layoutResult.system.lastBarIndex === previousSystemAtPosition.lastBarIndex) {
+                contextIsStable = true;
+                break;
+            }
+        }
+        const rebuiltPartialIds = removedPartialIds.slice(0, rebuiltSystemCount);
+        const preservedTailPartialIds = removedPartialIds.slice(rebuiltSystemCount);
+        for (const removedPartialId of rebuiltPartialIds) {
+            this._lazyPartials.delete(removedPartialId);
+        }
+        const preservedTailSystems = contextIsStable ? removedSystems.slice(rebuiltSystemCount) : [];
+        const lastRebuiltBarIndex = currentBarIndex - 1;
+        if (contextIsStable) {
+            this._barsFromPreviousSystem = [];
+            const tailOffsetY = preservedTailSystems.length > 0 ? y - preservedTailSystems[0].y : 0;
+            this._systems.push(...preservedTailSystems);
+            this._systemPartialIds.push(...preservedTailPartialIds);
+            for (let preservedSystemIndex = 0; preservedSystemIndex < preservedTailSystems.length; preservedSystemIndex++) {
+                const preservedSystem = preservedTailSystems[preservedSystemIndex];
+                preservedSystem.y += tailOffsetY;
+                const preservedPartialArgs = this.getExistingPartialArgs(preservedTailPartialIds[preservedSystemIndex]);
+                if (preservedPartialArgs) {
+                    preservedPartialArgs.y += tailOffsetY * this.renderer.settings.display.scale;
+                }
+                preservedSystem.buildBoundingsLookup(0, 0);
+                this.reregisterPartial(preservedTailPartialIds[preservedSystemIndex]);
+            }
+            const lastSystem = this._systems[this._systems.length - 1];
+            y = lastSystem.y + Math.floor(lastSystem.height);
+        } else {
+            for (const preservedTailPartialId of preservedTailPartialIds) {
+                this._lazyPartials.delete(preservedTailPartialId);
+            }
+        }
+        this._allMasterBarRenderers = this._systems.flatMap(system => system.masterBarsRenderers);
+        this._barRendererLookup.clear();
+        for (const finalSystem of this._systems) {
+            for (const staff of finalSystem.allStaves) {
+                for (const renderer of staff.barRenderers) {
+                    this.registerBarRenderer(staff.staffId, renderer);
+                }
+            }
+        }
+        renderHints.lastChangedMasterBar = lastRebuiltBarIndex;
         const scoreLayoutCompletedAt = renderHints.measurePerformance ? performance.now() : 0;
 
         y = this.layoutAndRenderBottomScoreInfo(y);
@@ -137,12 +185,12 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
 
         if (renderHints.measurePerformance) {
             const completedAt = performance.now();
-            const rebuiltBarCount = this.lastBarIndex - firstBarIndex + 1;
+            const rebuiltBarCount = lastRebuiltBarIndex - firstBarIndex + 1;
             console.groupCollapsed(`[alphaTab vertical performance] ${(completedAt - performanceStartedAt).toFixed(2)} ms`);
             console.table([
                 { phase: 'system lookup and invalidation', durationMs: Number((invalidationCompletedAt - performanceStartedAt).toFixed(2)) },
                 { phase: 'preserved partial registration', durationMs: Number((preservedPartialsCompletedAt - invalidationCompletedAt).toFixed(2)) },
-                { phase: 'changed tail layout', barCount: rebuiltBarCount, durationMs: Number((scoreLayoutCompletedAt - preservedPartialsCompletedAt).toFixed(2)), millisecondsPerBar: rebuiltBarCount === 0 ? 0 : Number(((scoreLayoutCompletedAt - preservedPartialsCompletedAt) / rebuiltBarCount).toFixed(2)) },
+                { phase: contextIsStable ? 'changed context layout' : 'changed tail layout', barCount: rebuiltBarCount, durationMs: Number((scoreLayoutCompletedAt - preservedPartialsCompletedAt).toFixed(2)), millisecondsPerBar: rebuiltBarCount === 0 ? 0 : Number(((scoreLayoutCompletedAt - preservedPartialsCompletedAt) / rebuiltBarCount).toFixed(2)) },
                 { phase: 'footer and annotation', durationMs: Number((completedAt - scoreLayoutCompletedAt).toFixed(2)) },
                 { phase: 'vertical update total', durationMs: Number((completedAt - performanceStartedAt).toFixed(2)) }
             ]);
@@ -364,25 +412,23 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
         return y;
     }
 
+    private _layoutAndRenderNextSystem(y: number, currentBarIndex: number) {
+        const system: StaffSystem = this._createStaffSystem(currentBarIndex, this.lastBarIndex);
+        this._systems.push(system);
+        system.x = this.pagePadding![0];
+        system.y = y;
+        this._fitSystem(system);
+        Logger.debug(this.name, `Rendering partial from bar ${system.firstBarIndex} to ${system.lastBarIndex}`, null);
+        return { nextBarIndex: system.lastBarIndex + 1, system, y: y + this._paintSystem(system, y) };
+    }
+
     private _layoutAndRenderScore(y: number, startIndex: number): number {
         let currentBarIndex: number = startIndex;
-        const endBarIndex: number = this.lastBarIndex;
 
-        while (currentBarIndex <= endBarIndex) {
-            // create system and align set proper coordinates
-            const system: StaffSystem = this._createStaffSystem(currentBarIndex, endBarIndex);
-            this._systems.push(system);
-            system.x = this.pagePadding![0];
-            system.y = y;
-            currentBarIndex = system.lastBarIndex + 1;
-            // finalize system (sizing etc).
-            this._fitSystem(system);
-            Logger.debug(
-                this.name,
-                `Rendering partial from bar ${system.firstBarIndex} to ${system.lastBarIndex}`,
-                null
-            );
-            y += this._paintSystem(system, y);
+        while (currentBarIndex <= this.lastBarIndex) {
+            const layoutResult = this._layoutAndRenderNextSystem(y, currentBarIndex);
+            y = layoutResult.y;
+            currentBarIndex = layoutResult.nextBarIndex;
         }
         return y;
     }
