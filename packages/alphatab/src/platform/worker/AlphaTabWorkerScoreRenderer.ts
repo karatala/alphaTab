@@ -213,6 +213,7 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
         this._worker.postMessage({
             cmd: 'alphaTab.renderProjectScore',
             fontSizes: FontSizes.fontSizeLookupTables,
+            mainSentAt: renderHints?.measurePerformance ? performance.timeOrigin + serializationCompletedAt : undefined,
             projectId,
             renderHints,
             revision,
@@ -295,6 +296,7 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
         const performanceStartedAt = renderHints?.measurePerformance ? performance.now() : 0;
         this._worker.postMessage({
             cmd: 'alphaTab.renderTrackIndexes',
+            mainSentAt: renderHints?.measurePerformance ? performance.timeOrigin + performanceStartedAt : undefined,
             trackIndexes: Environment.prepareForPostMessage(trackIndexes),
             renderHints: renderHints
         });

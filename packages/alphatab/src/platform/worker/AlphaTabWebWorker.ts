@@ -127,16 +127,18 @@ export class AlphaTabWebWorker {
                 break;
             case 'alphaTab.renderTrackIndexes':
                 const trackRenderStartedAt = data.renderHints?.measurePerformance ? performance.now() : 0;
+                const trackRequestDeliveryDurationMs = data.mainSentAt === undefined ? 0 : Math.max(0, performance.timeOrigin + trackRenderStartedAt - data.mainSentAt);
                 this._measurePerformance = data.renderHints?.measurePerformance === true;
                 this._boundsSerializationDurationMs = 0;
                 this._renderMessageDurationMs = 0;
                 this._boundsDeltaRange = null;
                 const trackModelPreparedAt = this._measurePerformance ? performance.now() : 0;
                 this._renderMultiple(this._renderer.score, data.trackIndexes, data.renderHints);
-                this._logCompleteRenderPerformance('track indexes', trackRenderStartedAt, trackModelPreparedAt);
+                this._logCompleteRenderPerformance('track indexes', trackRenderStartedAt, trackModelPreparedAt, trackRequestDeliveryDurationMs);
                 break;
             case 'alphaTab.renderProjectScore':
                 const projectRenderStartedAt = data.renderHints?.measurePerformance ? performance.now() : 0;
+                const projectRequestDeliveryDurationMs = data.mainSentAt === undefined ? 0 : Math.max(0, performance.timeOrigin + projectRenderStartedAt - data.mainSentAt);
                 this._operationId = null;
                 this._projectId = data.projectId;
                 this._revision = data.revision;
@@ -148,7 +150,7 @@ export class AlphaTabWebWorker {
                 const projectScore = data.score == null ? null : JsonConverter.jsObjectToScore(data.score, this._renderer.settings);
                 const projectModelPreparedAt = this._measurePerformance ? performance.now() : 0;
                 this._renderMultiple(projectScore, data.trackIndexes, data.renderHints);
-                this._logCompleteRenderPerformance('project score', projectRenderStartedAt, projectModelPreparedAt);
+                this._logCompleteRenderPerformance('project score', projectRenderStartedAt, projectModelPreparedAt, projectRequestDeliveryDurationMs);
                 break;
             case 'alphaTab.renderProjectChange':
                 this._applyProjectChange(data);
@@ -177,13 +179,14 @@ export class AlphaTabWebWorker {
         }
     }
 
-    private _logCompleteRenderPerformance(label: string, performanceStartedAt: number, modelPreparedAt: number): void {
+    private _logCompleteRenderPerformance(label: string, performanceStartedAt: number, modelPreparedAt: number, requestDeliveryDurationMs: number = 0): void {
         if (!this._measurePerformance) {
             return;
         }
         const completedAt = performance.now();
         console.groupCollapsed(`[alphaTab worker performance] ${label}: ${(completedAt - performanceStartedAt).toFixed(2)} ms`);
         console.table([
+            { phase: 'main to worker delivery', durationMs: Number(requestDeliveryDurationMs.toFixed(2)) },
             { phase: 'score reconstruction', durationMs: Number((modelPreparedAt - performanceStartedAt).toFixed(2)) },
             { phase: 'renderer work and callbacks', durationMs: Number((completedAt - modelPreparedAt - this._boundsSerializationDurationMs - this._renderMessageDurationMs).toFixed(2)) },
             { phase: 'bounds serialization', durationMs: Number(this._boundsSerializationDurationMs.toFixed(2)) },

@@ -52,6 +52,7 @@ export type IAlphaTabWorkerMessage =
           cmd: 'alphaTab.renderTrackIndexes';
           trackIndexes: number[] | null;
           renderHints: RenderHints | undefined;
+          mainSentAt?: number;
       }
     | {
           cmd: 'alphaTab.renderProjectScore';
@@ -61,6 +62,7 @@ export type IAlphaTabWorkerMessage =
           projectId: string;
           revision: number;
           renderHints: RenderHints | undefined;
+          mainSentAt?: number;
       }
     | ({ cmd: 'alphaTab.renderProjectChange'; bars: AlphaTabProjectBarTransfer[]; renderHints: RenderHints; selectedTrackIndexes: number[] | null } & ProjectRenderChange)
     // worker -> main
