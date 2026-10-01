@@ -76,7 +76,7 @@ export type IAlphaTabWorkerMessage =
  * @internal
  */
 export interface IAlphaTabWorker<T> {
-    postMessage(message: T): void;
+    postMessage(message: T, transfer?: Transferable[]): void;
     addEventListener(event: 'message', handler: (ev: MessageEvent<T>) => void): void;
     removeEventListener(event: 'message', handler: (ev: MessageEvent<T>) => void): void;
     terminate(): void;

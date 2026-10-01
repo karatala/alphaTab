@@ -196,7 +196,7 @@ export interface IAlphaSynth {
      * @param data a byte array to load the data from
      * @param append Whether to fully replace or append the data from the given soundfont.
      */
-    loadSoundFont(data: Uint8Array, append: boolean): void;
+    loadSoundFont(data: Uint8Array, append: boolean, transferOwnership?: boolean): void;
 
     /**
      * Resets all loaded soundfonts as if they were not loaded.

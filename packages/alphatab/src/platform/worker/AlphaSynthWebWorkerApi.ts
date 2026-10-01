@@ -299,12 +299,15 @@ export class AlphaSynthWebWorkerApi implements IAlphaSynth {
         });
     }
 
-    public loadSoundFont(data: Uint8Array, append: boolean): void {
-        this._synth.postMessage({
+    public loadSoundFont(data: Uint8Array, append: boolean, transferOwnership?: boolean): void {
+        const soundFontData = Environment.prepareForPostMessage(data);
+        const message = {
             cmd: 'alphaSynth.loadSoundFontBytes',
-            data: Environment.prepareForPostMessage(data),
+            data: soundFontData,
             append: append
-        });
+        } satisfies IAlphaSynthWorkerMessage;
+        if (transferOwnership) this._synth.postMessage(message, [soundFontData.buffer as ArrayBuffer]);
+        else this._synth.postMessage(message);
     }
 
     public resetSoundFonts(): void {

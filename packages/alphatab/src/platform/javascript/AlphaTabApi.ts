@@ -281,7 +281,7 @@ export class AlphaTabApi extends AlphaTabApiBase<SettingsJson | Settings> {
         request.responseType = 'arraybuffer';
         request.onload = _ => {
             const buffer: Uint8Array = new Uint8Array(request.response);
-            this.loadSoundFont(buffer, append);
+            player.loadSoundFont(buffer, append, true);
         };
         request.onerror = e => {
             Logger.error('AlphaSynth', `Loading failed: ${(e as any).message}`);

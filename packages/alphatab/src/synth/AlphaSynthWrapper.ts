@@ -323,9 +323,9 @@ export class AlphaSynthWrapper implements IAlphaSynth {
         }
     }
 
-    public loadSoundFont(data: Uint8Array, append: boolean): void {
+    public loadSoundFont(data: Uint8Array, append: boolean, transferOwnership?: boolean): void {
         if (this._instance) {
-            this._instance!.loadSoundFont(data, append);
+            this._instance!.loadSoundFont(data, append, transferOwnership);
         }
     }
 
