@@ -165,6 +165,8 @@ export class AlphaTabApiBase<TSettings> {
     private _trackIndexLookup: Set<number> | null = null;
     private readonly _beatVisibilityChecker = new BoundsLookupVisibilityChecker();
     private _isDestroyed: boolean = false;
+    private _isScoreLoadedEventActive: boolean = false;
+    private _scoreLoadRenderRequested: boolean = false;
     private _score: Score | null = null;
     private _tracks: Track[] = [];
     private _actualPlayerMode: PlayerMode = PlayerMode.Disabled;
@@ -794,6 +796,9 @@ export class AlphaTabApiBase<TSettings> {
         if (!this.score) {
             return;
         }
+        if (this._isScoreLoadedEventActive) {
+            this._scoreLoadRenderRequested = true;
+        }
         if (this.uiFacade.canRender) {
             this._renderer.width = this.container.width;
             this._renderer.renderProjectScore(this.score, trackIndexes, projectId, revision, renderHints);
@@ -826,9 +831,16 @@ export class AlphaTabApiBase<TSettings> {
                 this._trackIndexes.push(track.index);
             }
             this._trackIndexLookup = new Set<number>(this._trackIndexes);
-            this._onScoreLoaded(score);
-            this.loadMidiForScore();
-            this.render(renderHints);
+            this._scoreLoadRenderRequested = false;
+            this._isScoreLoadedEventActive = true;
+            try {
+                this._onScoreLoaded(score);
+            } finally {
+                this._isScoreLoadedEventActive = false;
+            }
+            if (!this._scoreLoadRenderRequested) {
+                this.render(renderHints);
+            }
         } else {
             this._tracks = tracks;
 

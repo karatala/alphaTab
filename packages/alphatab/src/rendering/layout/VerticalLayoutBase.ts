@@ -30,6 +30,7 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
     private _systemPartialIds: string[] = [];
 
     protected doLayoutAndRender(renderHints: RenderHints | undefined): void {
+        const performanceStartedAt = renderHints?.measurePerformance ? performance.now() : 0;
         let y: number = this.pagePadding![1];
         this.width = this.renderer.width;
         this._allMasterBarRenderers = [];
@@ -48,15 +49,29 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
         //
         // 3. Chord Diagrms
         y = this._layoutAndRenderChordDiagrams(y, -1);
+        const headerCompletedAt = renderHints?.measurePerformance ? performance.now() : 0;
         //
         // 4. One result per StaffSystem
         y = this._layoutAndRenderScore(y, this.firstBarIndex);
+        const scoreLayoutCompletedAt = renderHints?.measurePerformance ? performance.now() : 0;
 
         y = this.layoutAndRenderBottomScoreInfo(y);
 
         y = this._layoutAndRenderAnnotation(y);
 
         this.height = (y + this.pagePadding![3]) * this.renderer.settings.display.scale;
+        if (renderHints?.measurePerformance) {
+            const completedAt = performance.now();
+            const barCount = this.lastBarIndex - this.firstBarIndex + 1;
+            console.groupCollapsed(`[alphaTab vertical performance] ${(completedAt - performanceStartedAt).toFixed(2)} ms`);
+            console.table([
+                { phase: 'score header layout', durationMs: Number((headerCompletedAt - performanceStartedAt).toFixed(2)) },
+                { phase: 'full score layout', barCount, durationMs: Number((scoreLayoutCompletedAt - headerCompletedAt).toFixed(2)), millisecondsPerBar: barCount === 0 ? 0 : Number(((scoreLayoutCompletedAt - headerCompletedAt) / barCount).toFixed(2)) },
+                { phase: 'footer and annotation', durationMs: Number((completedAt - scoreLayoutCompletedAt).toFixed(2)) },
+                { phase: 'vertical render total', durationMs: Number((completedAt - performanceStartedAt).toFixed(2)) }
+            ]);
+            console.groupEnd();
+        }
     }
 
     protected override registerPartial(args: RenderFinishedEventArgs, callback: (canvas: ICanvas) => void): void {
