@@ -31,6 +31,7 @@ export class AlphaTabWebWorker {
     private _measurePerformance: boolean = false;
     private _boundsSerializationDurationMs: number = 0;
     private _renderMessageDurationMs: number = 0;
+    private _lazyRenderStartedAt: number | null = null;
 
     public constructor(main: IAlphaTabWorkerGlobalScope<IAlphaTabWorkerMessage>) {
         this._main = main;
@@ -65,7 +66,8 @@ export class AlphaTabWebWorker {
                 Logger.logLevel = settings.core.logLevel;
                 this._renderer = new ScoreRenderer(settings);
                 this._renderer.partialRenderFinished.on(result => {
-                    this._postRenderMessage({ ...this._renderState(), cmd: 'alphaTab.partialRenderFinished', result });
+                    const workerRenderDurationMs = this._lazyRenderStartedAt === null ? undefined : performance.now() - this._lazyRenderStartedAt;
+                    this._postRenderMessage({ ...this._renderState(), cmd: 'alphaTab.partialRenderFinished', result, workerRenderDurationMs });
                 });
                 this._renderer.partialLayoutFinished.on(result => {
                     this._postRenderMessage({ ...this._renderState(), cmd: 'alphaTab.partialLayoutFinished', result });
@@ -95,7 +97,12 @@ export class AlphaTabWebWorker {
                 this._renderer.resizeRender();
                 break;
             case 'alphaTab.renderResult':
-                this._renderer.renderResult(data.resultId);
+                this._lazyRenderStartedAt = this._measurePerformance ? performance.now() : null;
+                try {
+                    this._renderer.renderResult(data.resultId);
+                } finally {
+                    this._lazyRenderStartedAt = null;
+                }
                 break;
             case 'alphaTab.setWidth':
                 this._renderer.width = data.width;

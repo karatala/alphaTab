@@ -123,7 +123,20 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
                 (this.preRender as EventEmitterOfT<boolean>).trigger(data.resize);
                 break;
             case 'alphaTab.partialRenderFinished':
+                const partialRenderMessageStartedAt = data.measurePerformance ? performance.now() : 0;
                 (this.partialRenderFinished as EventEmitterOfT<RenderFinishedEventArgs>).trigger(data.result);
+                if (data.measurePerformance) {
+                    const partialRenderMessageCompletedAt = performance.now();
+                    const partialWorkerSentAt = data.workerSentAt ?? performance.timeOrigin + partialRenderMessageStartedAt;
+                    const partialWorkerMessageDeliveryDuration = Math.max(0, performance.timeOrigin + partialRenderMessageStartedAt - partialWorkerSentAt);
+                    console.groupCollapsed(`[alphaTab lazy performance] operation ${data.operationId}, bars ${data.result.firstMasterBarIndex}-${data.result.lastMasterBarIndex}: ${(partialRenderMessageCompletedAt - partialRenderMessageStartedAt).toFixed(2)} ms main`);
+                    console.table([
+                        { phase: 'worker SVG render', durationMs: Number((data.workerRenderDurationMs ?? 0).toFixed(2)) },
+                        { phase: 'worker message delivery', durationMs: Number(partialWorkerMessageDeliveryDuration.toFixed(2)) },
+                        { phase: 'main DOM apply', durationMs: Number((partialRenderMessageCompletedAt - partialRenderMessageStartedAt).toFixed(2)) }
+                    ]);
+                    console.groupEnd();
+                }
                 break;
             case 'alphaTab.partialLayoutFinished':
                 (this.partialLayoutFinished as EventEmitterOfT<RenderFinishedEventArgs>).trigger(data.result);

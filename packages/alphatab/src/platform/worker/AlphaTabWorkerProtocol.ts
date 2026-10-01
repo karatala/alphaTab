@@ -65,7 +65,7 @@ export type IAlphaTabWorkerMessage =
     | ({ cmd: 'alphaTab.renderProjectChange'; bars: AlphaTabProjectBarTransfer[]; renderHints: RenderHints; selectedTrackIndexes: number[] | null } & ProjectRenderChange)
     // worker -> main
     | ({ cmd: 'alphaTab.preRender'; resize: boolean } & AlphaTabRenderResultState)
-    | ({ cmd: 'alphaTab.partialRenderFinished'; result: RenderFinishedEventArgs } & AlphaTabRenderResultState)
+    | ({ cmd: 'alphaTab.partialRenderFinished'; result: RenderFinishedEventArgs; workerRenderDurationMs?: number } & AlphaTabRenderResultState)
     | ({ cmd: 'alphaTab.partialLayoutFinished'; result: RenderFinishedEventArgs } & AlphaTabRenderResultState)
     | ({ cmd: 'alphaTab.renderFinished'; result: RenderFinishedEventArgs } & AlphaTabRenderResultState)
     | ({ cmd: 'alphaTab.postRenderFinished'; boundsDelta: boolean; boundsLookup: CompactBoundsLookup | null } & AlphaTabRenderResultState)
