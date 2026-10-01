@@ -94,7 +94,11 @@ export class AlphaTabWebWorker {
                 this._renderer.render(data.renderHints);
                 break;
             case 'alphaTab.resizeRender':
+                const resizeRenderStartedAt = this._measurePerformance ? performance.now() : 0;
                 this._renderer.resizeRender();
+                if (this._measurePerformance) {
+                    console.debug(`[alphaTab worker performance] resize: ${(performance.now() - resizeRenderStartedAt).toFixed(2)} ms`);
+                }
                 break;
             case 'alphaTab.renderResult':
                 this._lazyRenderStartedAt = this._measurePerformance ? performance.now() : null;

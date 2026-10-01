@@ -147,6 +147,9 @@ export class MidiFileSequencer {
     public playbackSpeed: number = 1;
 
     public mainSeek(timePosition: number): void {
+        if (this._mainState.tempoChanges.length === 0) {
+            return;
+        }
         // map to speed=1
         timePosition *= this.playbackSpeed;
 
