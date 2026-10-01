@@ -165,6 +165,7 @@ export class AlphaTabApiBase<TSettings> {
     private _trackIndexLookup: Set<number> | null = null;
     private readonly _beatVisibilityChecker = new BoundsLookupVisibilityChecker();
     private _isDestroyed: boolean = false;
+    private _deferMidiUntilExplicitLoad: boolean = false;
     private _isScoreLoadedEventActive: boolean = false;
     private _scoreLoadRenderRequested: boolean = false;
     private _score: Score | null = null;
@@ -446,7 +447,9 @@ export class AlphaTabApiBase<TSettings> {
         const player = new AlphaSynthWrapper();
         this._player = player;
         player.ready.on(() => {
-            this.loadMidiForScore();
+            if (!this._deferMidiUntilExplicitLoad) {
+                this.loadMidiForScore();
+            }
         });
         player.readyForPlayback.on(() => {
             this._onPlayerReady();
@@ -797,6 +800,7 @@ export class AlphaTabApiBase<TSettings> {
             return;
         }
         if (this._isScoreLoadedEventActive) {
+            this._deferMidiUntilExplicitLoad = true;
             this._scoreLoadRenderRequested = true;
         }
         if (this.uiFacade.canRender) {
@@ -831,6 +835,7 @@ export class AlphaTabApiBase<TSettings> {
                 this._trackIndexes.push(track.index);
             }
             this._trackIndexLookup = new Set<number>(this._trackIndexes);
+            this._deferMidiUntilExplicitLoad = false;
             this._scoreLoadRenderRequested = false;
             this._isScoreLoadedEventActive = true;
             try {
@@ -1811,6 +1816,7 @@ export class AlphaTabApiBase<TSettings> {
         if (!this.score) {
             return;
         }
+        this._deferMidiUntilExplicitLoad = false;
 
         const score = this.score!;
 
@@ -3561,7 +3567,7 @@ export class AlphaTabApiBase<TSettings> {
         }
         (this.scoreLoaded as EventEmitterOfT<Score>).trigger(score);
         this.uiFacade.triggerEvent(this.container, 'scoreLoaded', score);
-        if (!this._setupOrDestroyPlayer()) {
+        if (!this._setupOrDestroyPlayer() && !this._deferMidiUntilExplicitLoad) {
             // feed midi into current player (a new player will trigger a midi generation once the player is ready)
             this.loadMidiForScore();
         }
