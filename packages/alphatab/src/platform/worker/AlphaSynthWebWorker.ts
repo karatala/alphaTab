@@ -10,6 +10,7 @@ import { AlphaSynth, type IAlphaSynthAudioExporter } from '@coderline/alphatab/s
 import type { MidiEventsPlayedEventArgs } from '@coderline/alphatab/synth/MidiEventsPlayedEventArgs';
 import type { PlaybackRangeChangedEventArgs } from '@coderline/alphatab/synth/PlaybackRangeChangedEventArgs';
 import type { PlayerStateChangedEventArgs } from '@coderline/alphatab/synth/PlayerStateChangedEventArgs';
+import type { ISynthOutput } from '@coderline/alphatab/synth/ISynthOutput';
 import type { PositionChangedEventArgs } from '@coderline/alphatab/synth/PositionChangedEventArgs';
 
 /**
@@ -23,7 +24,7 @@ export class AlphaSynthWebWorker {
     private _main: IAlphaTabWorkerGlobalScope<IAlphaSynthWorkerMessage>;
     private _exporter: Map<number, IAlphaSynthAudioExporter> = new Map<number, IAlphaSynthAudioExporter>();
 
-    public constructor(main: IAlphaTabWorkerGlobalScope<IAlphaSynthWorkerMessage>) {
+    public constructor(main: IAlphaTabWorkerGlobalScope<IAlphaSynthWorkerMessage>, private readonly playerFactory: (output: ISynthOutput, bufferMilliseconds: number) => AlphaSynth = (output, bufferMilliseconds) => new AlphaSynth(output, bufferMilliseconds)) {
         this._main = main;
         main.addEventListener('message', e => this.handleMessage(e));
     }
@@ -42,7 +43,7 @@ export class AlphaSynthWebWorker {
             case 'alphaSynth.initialize':
                 AlphaSynthWorkerSynthOutput.preferredSampleRate = data.sampleRate;
                 Logger.logLevel = data.logLevel;
-                this._player = new AlphaSynth(
+                this._player = this.playerFactory(
                     new AlphaSynthWorkerSynthOutput(this._main),
                     data.bufferTimeInMilliseconds
                 );

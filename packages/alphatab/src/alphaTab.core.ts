@@ -42,7 +42,7 @@ export { Logger, ConsoleLogger } from '@coderline/alphatab/Logger';
 export type { ILogger } from '@coderline/alphatab/Logger';
 export { FileLoadError } from '@coderline/alphatab/FileLoadError';
 export { Environment, RenderEngineFactory } from '@coderline/alphatab/Environment';
-export type { IEventEmitter, IEventEmitterOfT } from '@coderline/alphatab/EventEmitter';
+export { EventEmitter, EventEmitterOfT, type IEventEmitter, type IEventEmitterOfT } from '@coderline/alphatab/EventEmitter';
 
 export { AlphaTabApi } from '@coderline/alphatab/platform/javascript/AlphaTabApi';
 export { AlphaTabApiBase, type PlaybackHighlightChangeEventArgs } from '@coderline/alphatab/AlphaTabApiBase';

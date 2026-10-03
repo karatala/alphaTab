@@ -609,6 +609,8 @@ export class Environment {
     /**
      * @target web
      */
+    public static customSynthWorkerFactory: ((settings: Settings) => Worker) | null = null;
+
     public static initializeMain(
         createWebWorker: (settings: Settings, nameHint: string) => Worker,
         createAudioWorklet: (context: AudioContext, settings: Settings) => Promise<void>

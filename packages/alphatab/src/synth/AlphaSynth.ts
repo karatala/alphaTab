@@ -739,8 +739,8 @@ export class AlphaSynth extends AlphaSynthBase {
      * Initializes a new instance of the {@link AlphaSynth} class.
      * @param output The output to use for playing the generated samples.
      */
-    public constructor(output: ISynthOutput, bufferTimeInMilliseconds: number) {
-        super(output, new TinySoundFont(output.sampleRate), bufferTimeInMilliseconds);
+    public constructor(output: ISynthOutput, bufferTimeInMilliseconds: number, synthesizer?: IAudioSampleSynthesizer) {
+        super(output, synthesizer ?? new TinySoundFont(output.sampleRate), bufferTimeInMilliseconds);
     }
 
     /**

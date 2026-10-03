@@ -22,3 +22,5 @@ export {
     AudioExportChunk,
     AudioExportOptions
 } from '@coderline/alphatab/synth/IAudioExporter';
+
+export { AlphaSynthWebWorker } from '@coderline/alphatab/platform/worker/AlphaSynthWebWorker';

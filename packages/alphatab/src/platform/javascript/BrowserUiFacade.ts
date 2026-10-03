@@ -731,7 +731,7 @@ export class BrowserUiFacade implements IUiFacade<unknown> {
             Logger.debug('Player', 'Will use webworkers for synthesizing and web audio api with worklets for playback');
             let worker: IAlphaSynthWorker | undefined;
             try {
-                worker = BrowserUiFacade.createAlphaSynthWebWorker(this._api.settings);
+                worker = Environment.customSynthWorkerFactory?.(this._api.settings) ?? BrowserUiFacade.createAlphaSynthWebWorker(this._api.settings);
             } catch (e) {
                 Logger.error('Player', 'Failed to create worker for synthesizing audio', e);
                 return null;
@@ -749,7 +749,7 @@ export class BrowserUiFacade implements IUiFacade<unknown> {
             );
             let worker: IAlphaSynthWorker | undefined;
             try {
-                worker = BrowserUiFacade.createAlphaSynthWebWorker(this._api.settings);
+                worker = Environment.customSynthWorkerFactory?.(this._api.settings) ?? BrowserUiFacade.createAlphaSynthWebWorker(this._api.settings);
             } catch (e) {
                 Logger.error('Player', 'Failed to create worker for synthesizing audio', e);
                 return null;
