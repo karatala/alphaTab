@@ -23,6 +23,9 @@ import type { Settings } from '@coderline/alphatab/Settings';
  * @public
  */
 export class ScoreRenderer implements IScoreRenderer {
+    private _switchingTracks: boolean = false;
+    private _trackLayouts: Map<number, { layout: ScoreLayout; bounds: BoundsLookup; width: number }> = new Map();
+
     private _currentLayoutMode: LayoutMode = LayoutMode.Page;
     private _currentRenderEngine: string | null = null;
     private _renderedTracks: Track[] | null = null;
@@ -49,6 +52,7 @@ export class ScoreRenderer implements IScoreRenderer {
     }
 
     public destroy(): void {
+        this._trackLayouts.clear();
         this.score = null;
         this.canvas?.destroy();
         this.canvas = null;
@@ -105,7 +109,12 @@ export class ScoreRenderer implements IScoreRenderer {
     }
 
     public renderTrackIndexes(trackIndexes: number[] | null, renderHints?: RenderHints): void {
-        this.renderScore(this.score, trackIndexes, renderHints);
+        this._switchingTracks = true;
+        try {
+            this.renderScore(this.score, trackIndexes, renderHints);
+        } finally {
+            this._switchingTracks = false;
+        }
     }
 
     public renderProjectScore(score: Score | null, trackIndexes: number[] | null, _projectId: string, _revision: number, renderHints?: RenderHints): void {
@@ -131,6 +140,7 @@ export class ScoreRenderer implements IScoreRenderer {
     }
 
     public updateSettings(settings: Settings): void {
+        this._trackLayouts.clear();
         this.settings = settings;
     }
 
@@ -149,6 +159,26 @@ export class ScoreRenderer implements IScoreRenderer {
     }
 
     public render(renderHints?: RenderHints): void {
+        if (!this._switchingTracks || renderHints?.firstChangedMasterBar !== undefined) this._trackLayouts.clear();
+        const trackIndex = this.tracks?.length === 1 ? this.tracks[0].index : null;
+        const cached = this._switchingTracks && trackIndex !== null ? this._trackLayouts.get(trackIndex) : undefined;
+        if (cached && cached.width === this.width) {
+            this.layout = cached.layout;
+            this.boundsLookup = cached.bounds;
+            this._renderedTracks = this.tracks;
+            this._trackLayouts.delete(trackIndex!);
+            this._trackLayouts.set(trackIndex!, cached);
+            (this.preRender as EventEmitterOfT<boolean>).trigger(false);
+            this.layout.replayLazyLayout();
+            this._onRenderFinished(false);
+            (this.postRenderFinished as EventEmitter).trigger();
+            if (renderHints?.measurePerformance) console.info('[alphaTab track layout cache] hit', trackIndex);
+            return;
+        }
+        if (this._switchingTracks) {
+            this.layout = null;
+            if (renderHints?.measurePerformance) console.info('[alphaTab track layout cache] miss', trackIndex);
+        }
         Profiler.begin('render.total');
         if (this.width === 0) {
             Logger.warning('Rendering', 'AlphaTab skipped rendering because of width=0 (element invisible)', null);
@@ -189,6 +219,7 @@ export class ScoreRenderer implements IScoreRenderer {
     }
 
     public resizeRender(): void {
+        this._trackLayouts.clear();
         Profiler.begin('resize.total');
         if (this._recreateLayout() || this._recreateCanvas() || this._renderedTracks !== this.tracks || !this.tracks) {
             Logger.debug('Rendering', 'Starting full rerendering due to layout or canvas change', null);
@@ -221,6 +252,10 @@ export class ScoreRenderer implements IScoreRenderer {
         Profiler.end('render.layoutAndRender');
         this._renderedTracks = this.tracks;
         this._onRenderFinished();
+        if (this.tracks?.length === 1 && this.settings.core.enableLazyLoading && this.boundsLookup && this.layout) {
+            this._trackLayouts.set(this.tracks[0].index, { layout: this.layout, bounds: this.boundsLookup, width: this.width });
+            while (this._trackLayouts.size > 4) this._trackLayouts.delete(this._trackLayouts.keys().next().value!);
+        }
         (this.postRenderFinished as EventEmitter).trigger();
     }
 
@@ -234,8 +269,8 @@ export class ScoreRenderer implements IScoreRenderer {
     public readonly postRenderFinished: IEventEmitter = new EventEmitter();
     public readonly error: IEventEmitterOfT<Error> = new EventEmitterOfT<Error>();
 
-    private _onRenderFinished() {
-        this.boundsLookup?.finish(this.settings.display.scale);
+    private _onRenderFinished(finishBounds: boolean = true) {
+        if (finishBounds) this.boundsLookup?.finish(this.settings.display.scale);
         const e = new RenderFinishedEventArgs();
         e.totalHeight = this.layout!.height;
         e.totalWidth = this.layout!.width;

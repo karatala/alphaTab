@@ -133,7 +133,7 @@ export class AlphaTabWebWorker {
                 this._renderMessageDurationMs = 0;
                 this._boundsDeltaRange = null;
                 const trackModelPreparedAt = this._measurePerformance ? performance.now() : 0;
-                this._renderMultiple(this._renderer.score, data.trackIndexes, data.renderHints);
+                this._renderer.renderTrackIndexes(data.trackIndexes, data.renderHints);
                 this._logCompleteRenderPerformance('track indexes', trackRenderStartedAt, trackModelPreparedAt, trackRequestDeliveryDurationMs);
                 break;
             case 'alphaTab.renderProjectScore':
@@ -169,6 +169,7 @@ export class AlphaTabWebWorker {
 
     private _updateSettings(json: unknown): void {
         SettingsSerializer.fromJson(this._renderer.settings, json);
+        this._renderer.updateSettings(this._renderer.settings);
     }
 
     private _renderMultiple(score: Score | null, trackIndexes: number[] | null, renderHints?: RenderHints): void {

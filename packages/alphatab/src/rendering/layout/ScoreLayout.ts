@@ -182,6 +182,13 @@ export abstract class ScoreLayout {
         (this.renderer.partialRenderFinished as EventEmitterOfT<RenderFinishedEventArgs>).trigger(args);
     }
 
+    public replayLazyLayout(): void {
+        for (const partial of this._lazyPartials.values()) {
+            const args = { ...partial.args, renderResult: null };
+            (this.renderer.partialLayoutFinished as EventEmitterOfT<RenderFinishedEventArgs>).trigger(args);
+        }
+    }
+
     public renderLazyPartial(resultId: string) {
         if (this._lazyPartials.has(resultId)) {
             const lazyPartial = this._lazyPartials.get(resultId)!;
