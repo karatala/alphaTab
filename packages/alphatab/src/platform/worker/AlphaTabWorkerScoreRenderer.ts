@@ -45,6 +45,9 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
     private _projectRenderInFlight: boolean = false;
     private _projectState: ProjectRenderState | null = null;
 
+    private _mainPerformanceStartedAt: number | null = null;
+    private _mainPerformancePhases: Map<string, { firstStartedAt: number; duration: number; count: number; maximumDelivery: number }> = new Map();
+
     public boundsLookup: BoundsLookup | null = null;
 
     public constructor(api: AlphaTabApiBase<T>, worker: IAlphaTabRenderingWorker) {
@@ -58,6 +61,7 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
     }
 
     public destroy(): void {
+        this._beginMainPerformance();
         this._worker.terminate();
     }
 
@@ -76,6 +80,7 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
     }
 
     public render(renderHints?: RenderHints): void {
+        this._beginMainPerformance(renderHints);
         this._worker.postMessage({
             cmd: 'alphaTab.render',
             renderHints: renderHints
@@ -83,6 +88,7 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
     }
 
     public resizeRender(): void {
+        this._beginMainPerformance();
         this._worker.postMessage({
             cmd: 'alphaTab.resizeRender'
         });
@@ -107,6 +113,46 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
         });
     }
 
+    private _beginMainPerformance(renderHints?: RenderHints): void {
+        this._mainPerformanceStartedAt = renderHints?.measurePerformance ? performance.now() : null;
+        this._mainPerformancePhases.clear();
+    }
+
+    private _measureMainCallbacks(name: string, workerSentAt: number | undefined, operation: () => void): void {
+        if (this._mainPerformanceStartedAt === null) {
+            operation();
+            return;
+        }
+        const startedAt = performance.now();
+        try {
+            operation();
+        } finally {
+            const duration = performance.now() - startedAt;
+            const delivery = workerSentAt === undefined ? 0 : Math.max(0, performance.timeOrigin + startedAt - workerSentAt);
+            const phase = this._mainPerformancePhases.get(name);
+            if (phase) {
+                phase.duration += duration;
+                phase.count++;
+                phase.maximumDelivery = Math.max(phase.maximumDelivery, delivery);
+            } else {
+                this._mainPerformancePhases.set(name, { firstStartedAt: startedAt, duration, count: 1, maximumDelivery: delivery });
+            }
+        }
+    }
+
+    private _takeMainPerformanceReport(postRenderStartedAt: number): (() => void) | null {
+        const startedAt = this._mainPerformanceStartedAt;
+        if (startedAt === null) return null;
+        const phases = Array.from(this._mainPerformancePhases);
+        this._mainPerformanceStartedAt = null;
+        this._mainPerformancePhases.clear();
+        return () => {
+            console.groupCollapsed(`[alphaTab main render callbacks] ${(postRenderStartedAt - startedAt).toFixed(2)} ms from request to post-render message`);
+            console.table(phases.map(([phase, timing]) => ({ phase, firstStartMs: Number((timing.firstStartedAt - startedAt).toFixed(2)), durationMs: Number(timing.duration.toFixed(2)), count: timing.count, maximumDeliveryMs: Number(timing.maximumDelivery.toFixed(2)) })));
+            console.groupEnd();
+        };
+    }
+
     private _handleWorkerMessage(e: MessageEvent<IAlphaTabWorkerMessage>): void {
         const data = e.data;
         const state = this._projectState;
@@ -120,11 +166,11 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
         const cmd = data.cmd;
         switch (cmd) {
             case 'alphaTab.preRender':
-                (this.preRender as EventEmitterOfT<boolean>).trigger(data.resize);
+                this._measureMainCallbacks('pre-render callbacks', data.workerSentAt, () => (this.preRender as EventEmitterOfT<boolean>).trigger(data.resize));
                 break;
             case 'alphaTab.partialRenderFinished':
                 const partialRenderMessageStartedAt = data.measurePerformance ? performance.now() : 0;
-                (this.partialRenderFinished as EventEmitterOfT<RenderFinishedEventArgs>).trigger(data.result);
+                this._measureMainCallbacks('partial SVG callbacks', data.workerSentAt, () => (this.partialRenderFinished as EventEmitterOfT<RenderFinishedEventArgs>).trigger(data.result));
                 if (data.measurePerformance) {
                     const partialRenderMessageCompletedAt = performance.now();
                     const partialWorkerSentAt = data.workerSentAt ?? performance.timeOrigin + partialRenderMessageStartedAt;
@@ -139,13 +185,14 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
                 }
                 break;
             case 'alphaTab.partialLayoutFinished':
-                (this.partialLayoutFinished as EventEmitterOfT<RenderFinishedEventArgs>).trigger(data.result);
+                this._measureMainCallbacks('partial layout callbacks', data.workerSentAt, () => (this.partialLayoutFinished as EventEmitterOfT<RenderFinishedEventArgs>).trigger(data.result));
                 break;
             case 'alphaTab.renderFinished':
-                (this.renderFinished as EventEmitterOfT<RenderFinishedEventArgs>).trigger(data.result);
+                this._measureMainCallbacks('render-finished callbacks', data.workerSentAt, () => (this.renderFinished as EventEmitterOfT<RenderFinishedEventArgs>).trigger(data.result));
                 break;
             case 'alphaTab.postRenderFinished':
                 const mainMessageStartedAt = data.measurePerformance ? performance.now() : 0;
+                const reportMainPerformance = this._takeMainPerformanceReport(mainMessageStartedAt);
                 const score = this._api.score;
                 const hasPendingChange = this._pendingProjectChange !== null;
                 const boundsReconstructionStartedAt = data.measurePerformance ? performance.now() : 0;
@@ -175,6 +222,7 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
                     ]);
                     console.groupEnd();
                 }
+                reportMainPerformance?.();
                 break;
             case 'alphaTab.projectSyncRequired':
                 const currentState = this._projectState;
@@ -184,6 +232,7 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
                 }
                 break;
             case 'alphaTab.error':
+                this._beginMainPerformance();
                 this._pendingProjectChange = null;
                 this._projectRenderInFlight = false;
                 (this.error as EventEmitterOfT<Error>).trigger(data.error);
@@ -192,6 +241,7 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
     }
 
     public renderScore(score: Score | null, trackIndexes: number[] | null, renderHints?: RenderHints): void {
+        this._beginMainPerformance(renderHints);
         const jsObject: Map<string, unknown> | null =
             score == null ? null : JsonConverter.scoreToJsObject(Environment.prepareForPostMessage(score));
         this._worker.postMessage({
@@ -204,6 +254,7 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
     }
 
     public renderProjectScore(score: Score | null, trackIndexes: number[] | null, projectId: string, revision: number, renderHints?: RenderHints): void {
+        this._beginMainPerformance(renderHints);
         const performanceStartedAt = renderHints?.measurePerformance ? performance.now() : 0;
         this._pendingProjectChange = null;
         this._projectRenderInFlight = true;
@@ -233,6 +284,7 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
     }
 
     private _postProjectChange(score: Score | null, trackIndexes: number[] | null, change: ProjectRenderChange, renderHints: RenderHints): void {
+        this._beginMainPerformance(renderHints);
         const bars = [];
         for (const trackIndex of change.trackIndexes) {
             const track = score?.tracks[trackIndex];
@@ -293,6 +345,7 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
     }
 
     public renderTrackIndexes(trackIndexes: number[] | null, renderHints?: RenderHints): void {
+        this._beginMainPerformance(renderHints);
         const performanceStartedAt = renderHints?.measurePerformance ? performance.now() : 0;
         this._worker.postMessage({
             cmd: 'alphaTab.renderTrackIndexes',
