@@ -13,6 +13,7 @@ import type {
     IAlphaTabWorkerGlobalScope,
     IAlphaTabWorkerMessage
 } from '@coderline/alphatab/platform/worker/AlphaTabWorkerProtocol';
+import type { RenderFinishedEventArgs } from '@coderline/alphatab/rendering/RenderFinishedEventArgs';
 import type { RenderHints } from '@coderline/alphatab/rendering/IScoreRenderer';
 import { ScoreRenderer } from '@coderline/alphatab/rendering/ScoreRenderer';
 import type { Settings } from '@coderline/alphatab/Settings';
@@ -31,6 +32,7 @@ export class AlphaTabWebWorker {
     private _measurePerformance: boolean = false;
     private _boundsSerializationDurationMs: number = 0;
     private _renderMessageDurationMs: number = 0;
+    private _cachedLayoutResults: RenderFinishedEventArgs[] = [];
     private _lazyRenderStartedAt: number | null = null;
 
     public constructor(main: IAlphaTabWorkerGlobalScope<IAlphaTabWorkerMessage>) {
@@ -70,9 +72,15 @@ export class AlphaTabWebWorker {
                     this._postRenderMessage({ ...this._renderState(), cmd: 'alphaTab.partialRenderFinished', result, workerRenderDurationMs });
                 });
                 this._renderer.partialLayoutFinished.on(result => {
-                    this._postRenderMessage({ ...this._renderState(), cmd: 'alphaTab.partialLayoutFinished', result });
+                    if (this._renderer.isReplayingTrackLayout) this._cachedLayoutResults.push(result);
+                    else this._postRenderMessage({ ...this._renderState(), cmd: 'alphaTab.partialLayoutFinished', result });
                 });
                 this._renderer.renderFinished.on(result => {
+                    if (this._cachedLayoutResults.length > 0) {
+                        const results = this._cachedLayoutResults;
+                        this._cachedLayoutResults = [];
+                        this._postRenderMessage({ ...this._renderState(), cmd: 'alphaTab.partialLayoutBatchFinished', results });
+                    }
                     this._postRenderMessage({ ...this._renderState(), cmd: 'alphaTab.renderFinished', result });
                 });
                 this._renderer.postRenderFinished.on(() => {
@@ -85,6 +93,7 @@ export class AlphaTabWebWorker {
                     this._postRenderMessage({ ...this._renderState(), boundsDelta: boundsRange !== null, boundsLookup, cmd: 'alphaTab.postRenderFinished' });
                 });
                 this._renderer.preRender.on(resize => {
+                    this._cachedLayoutResults = [];
                     this._postRenderMessage({ ...this._renderState(), cmd: 'alphaTab.preRender', resize });
                 });
                 this._renderer.error.on(this._error.bind(this));

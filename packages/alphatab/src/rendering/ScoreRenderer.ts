@@ -24,6 +24,9 @@ import type { Settings } from '@coderline/alphatab/Settings';
  */
 export class ScoreRenderer implements IScoreRenderer {
     private _switchingTracks: boolean = false;
+    private _replayingTrackLayout: boolean = false;
+
+    public get isReplayingTrackLayout(): boolean { return this._replayingTrackLayout; }
     private _trackLayouts: Map<number, { layout: ScoreLayout; bounds: BoundsLookup; width: number }> = new Map();
 
     private _currentLayoutMode: LayoutMode = LayoutMode.Page;
@@ -169,7 +172,12 @@ export class ScoreRenderer implements IScoreRenderer {
             this._trackLayouts.delete(trackIndex!);
             this._trackLayouts.set(trackIndex!, cached);
             (this.preRender as EventEmitterOfT<boolean>).trigger(false);
-            this.layout.replayLazyLayout();
+            this._replayingTrackLayout = true;
+            try {
+                this.layout.replayLazyLayout();
+            } finally {
+                this._replayingTrackLayout = false;
+            }
             this._onRenderFinished(false);
             (this.postRenderFinished as EventEmitter).trigger();
             if (renderHints?.measurePerformance) console.info('[alphaTab track layout cache] hit', trackIndex);

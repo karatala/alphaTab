@@ -187,6 +187,11 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
             case 'alphaTab.partialLayoutFinished':
                 this._measureMainCallbacks('partial layout callbacks', data.workerSentAt, () => (this.partialLayoutFinished as EventEmitterOfT<RenderFinishedEventArgs>).trigger(data.result));
                 break;
+            case 'alphaTab.partialLayoutBatchFinished':
+                this._measureMainCallbacks(`cached layout batch (${data.results.length} parts)`, data.workerSentAt, () => {
+                    for (const result of data.results) (this.partialLayoutFinished as EventEmitterOfT<RenderFinishedEventArgs>).trigger(result);
+                });
+                break;
             case 'alphaTab.renderFinished':
                 this._measureMainCallbacks('render-finished callbacks', data.workerSentAt, () => (this.renderFinished as EventEmitterOfT<RenderFinishedEventArgs>).trigger(data.result));
                 break;

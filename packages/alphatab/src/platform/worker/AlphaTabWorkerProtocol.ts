@@ -69,6 +69,7 @@ export type IAlphaTabWorkerMessage =
     | ({ cmd: 'alphaTab.preRender'; resize: boolean } & AlphaTabRenderResultState)
     | ({ cmd: 'alphaTab.partialRenderFinished'; result: RenderFinishedEventArgs; workerRenderDurationMs?: number } & AlphaTabRenderResultState)
     | ({ cmd: 'alphaTab.partialLayoutFinished'; result: RenderFinishedEventArgs } & AlphaTabRenderResultState)
+    | ({ cmd: 'alphaTab.partialLayoutBatchFinished'; results: RenderFinishedEventArgs[] } & AlphaTabRenderResultState)
     | ({ cmd: 'alphaTab.renderFinished'; result: RenderFinishedEventArgs } & AlphaTabRenderResultState)
     | ({ cmd: 'alphaTab.postRenderFinished'; boundsDelta: boolean; boundsLookup: CompactBoundsLookup | null } & AlphaTabRenderResultState)
     | { cmd: 'alphaTab.projectSyncRequired'; operationId: number; projectId: string }
