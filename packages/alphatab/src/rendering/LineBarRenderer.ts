@@ -113,6 +113,7 @@ export abstract class LineBarRenderer extends BarRendererBase {
 
     protected override paintContent(cx: number, cy: number, canvas: ICanvas): void {
         super.paintContent(cx, cy, canvas);
+        if (this.shouldCollapseRests) return;
         this.paintBeams(cx, cy, canvas, this.flagsSubElement, this.beamsSubElement);
         this.paintTuplets(cx, cy, canvas, this.tupletSubElement);
     }

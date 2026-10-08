@@ -392,6 +392,9 @@ export enum NotationElement {
  * @public
  */
 export class NotationSettings {
+    /** Show one measure rest in rest-only score and tab bars without changing beat timing. */
+    public collapseRestBars: boolean = false;
+
     /**
      * The mode to use for display and play music notation elements.
      * @since 0.9.6

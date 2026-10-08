@@ -9,6 +9,8 @@ import type { Note } from '@coderline/alphatab/model/Note';
 import { Staff } from '@coderline/alphatab/model/Staff';
 import type { Voice } from '@coderline/alphatab/model/Voice';
 import type { ICanvas } from '@coderline/alphatab/platform/ICanvas';
+import { Duration } from '@coderline/alphatab/model/Duration';
+import { ScoreRestGlyph } from '@coderline/alphatab/rendering/glyphs/ScoreRestGlyph';
 import { NoteYPosition } from '@coderline/alphatab/rendering/BarRendererBase';
 import { AccidentalGlyph } from '@coderline/alphatab/rendering/glyphs/AccidentalGlyph';
 import { ClefGlyph } from '@coderline/alphatab/rendering/glyphs/ClefGlyph';
@@ -133,6 +135,21 @@ export class ScoreBarRenderer extends LineBarRenderer {
 
     protected override get flagsSubElement(): BeatSubElement {
         return BeatSubElement.StandardNotationFlags;
+    }
+
+    protected override get shouldCollapseRests(): boolean {
+        return this.settings.notation.collapseRestBars && this.bar.isRestOnly && !this.bar.isEmpty;
+    }
+
+    protected override paintCollapsedRest(cx: number, cy: number, canvas: ICanvas): void {
+        const lineCount = this.bar.staff.standardNotationLineCount;
+        const restSteps = Math.ceil((lineCount - 1) / 2) * 2 - (lineCount === 1 || lineCount === 3 ? 0 : 2);
+        const rest = new ScoreRestGlyph(0, this.getScoreY(restSteps), Duration.Whole);
+        rest.renderer = this;
+        rest.beat = this.bar.voices.find(voice => !voice.isEmpty)!.beats[0];
+        rest.doLayout();
+        rest.x = this.collapsedRestX - rest.width / 2;
+        rest.paint(cx, cy, canvas);
     }
 
     protected override get beamsSubElement(): BeatSubElement {

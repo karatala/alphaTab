@@ -5,6 +5,8 @@ import type { Note } from '@coderline/alphatab/model/Note';
 import type { Voice } from '@coderline/alphatab/model/Voice';
 import { TabRhythmMode } from '@coderline/alphatab/NotationSettings';
 import type { ICanvas } from '@coderline/alphatab/platform/ICanvas';
+import { Duration } from '@coderline/alphatab/model/Duration';
+import { TabRestGlyph } from '@coderline/alphatab/rendering/glyphs/TabRestGlyph';
 import { NoteYPosition } from '@coderline/alphatab/rendering/BarRendererBase';
 import { BeatXPosition } from '@coderline/alphatab/rendering/BeatXPosition';
 import {
@@ -170,6 +172,19 @@ export class TabBarRenderer extends LineBarRenderer {
             const absX = base + beatRefs[i].x + relXAndWidth[i * 2];
             spaces[line].push(new Float32Array([absX, relXAndWidth[i * 2 + 1]]));
         }
+    }
+
+    protected override get shouldCollapseRests(): boolean {
+        return this.settings.notation.collapseRestBars && this.bar.isRestOnly && !this.bar.isEmpty;
+    }
+
+    protected override paintCollapsedRest(cx: number, cy: number, canvas: ICanvas): void {
+        const rest = new TabRestGlyph(0, this.getLineY(Math.floor((this.bar.staff.tuning.length - 1) / 2)), this.showRests, Duration.Whole);
+        rest.renderer = this;
+        rest.beat = this.bar.voices.find(voice => !voice.isEmpty)!.beats[0];
+        rest.doLayout();
+        rest.x = this.collapsedRestX - rest.width / 2;
+        rest.paint(cx, cy, canvas);
     }
 
     protected override paintStaffLines(cx: number, cy: number, canvas: ICanvas): void {

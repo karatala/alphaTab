@@ -138,7 +138,7 @@ export class TabBeatGlyph extends BeatOnNoteGlyphBase {
                     this.addEffect(new AugmentationDotGlyph(0, y));
                 }
             }
-        } else {
+        } else if (!this.container.beat.isEmpty) {
             const line = Math.floor((this.renderer.bar.staff.tuning.length - 1) / 2);
             const y: number = tabRenderer.getLineY(line);
             const restGlyph = new TabRestGlyph(0, y, tabRenderer.showRests, this.container.beat.duration);

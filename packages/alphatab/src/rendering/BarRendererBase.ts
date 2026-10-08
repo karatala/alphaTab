@@ -821,11 +821,20 @@ export class BarRendererBase {
 
         canvas.color = this.resources.mainGlyphColor;
         this._preBeatGlyphs.paint(cx + this.x, cy + this.y, canvas);
-        this.voiceContainer.paint(cx + this.x, cy + this.y, canvas);
+        if (this.shouldCollapseRests) this.paintCollapsedRest(cx + this.x, cy + this.y, canvas);
+        else this.voiceContainer.paint(cx + this.x, cy + this.y, canvas);
         canvas.color = this.resources.mainGlyphColor;
         this._postBeatGlyphs.paint(cx + this.x, cy + this.y, canvas);
 
         this._paintMultiSystemSlurs(cx, cy, canvas);
+    }
+
+    protected get shouldCollapseRests(): boolean { return false; }
+
+    protected paintCollapsedRest(_cx: number, _cy: number, _canvas: ICanvas): void {}
+
+    protected get collapsedRestX(): number {
+        return (this.beatGlyphsStart + this.postBeatGroupOffset) / 2;
     }
 
     private _paintMultiSystemSlurs(cx: number, cy: number, canvas: ICanvas) {

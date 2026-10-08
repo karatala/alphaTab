@@ -24,6 +24,7 @@ export class NotationSettingsSerializer {
             return null;
         }
         const o = new Map<string, unknown>();
+        o.set("collapserestbars", obj.collapseRestBars);
         o.set("notationmode", obj.notationMode as number);
         o.set("fingeringmode", obj.fingeringMode as number);
         {
@@ -45,6 +46,9 @@ export class NotationSettingsSerializer {
     }
     public static setProperty(obj: NotationSettings, property: string, v: unknown): boolean {
         switch (property) {
+            case "collapserestbars":
+                obj.collapseRestBars = v! as boolean;
+                return true;
             case "notationmode":
                 obj.notationMode = JsonHelper.parseEnum<NotationMode>(v, NotationMode)!;
                 return true;
