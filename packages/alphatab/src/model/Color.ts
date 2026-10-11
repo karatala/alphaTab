@@ -69,6 +69,9 @@ export class Color {
     }
 
     public static fromJson(v: unknown): Color | null {
+        if (v === null) {
+            return null;
+        }
         if (v instanceof Color) {
             return v;
         }
