@@ -83,6 +83,12 @@ export class SyncPointData {
  */
 export class Automation {
     /**
+     * True only for the initial instrument event supplied by Beat.finish.
+     * Absent on source declarations. This keeps its origin through worker JSON and cloning.
+     */
+    public isGeneratedInstrument: boolean | undefined;
+
+    /**
      * Gets or sets whether the automation is applied linear.
      */
     public isLinear: boolean = false;

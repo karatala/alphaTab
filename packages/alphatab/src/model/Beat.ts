@@ -357,6 +357,14 @@ export class Beat {
     public automations: Automation[] = [];
 
     /**
+     * Source automations without the generated initial instrument event.
+     * @json_ignore
+     */
+    public get sourceAutomations(): Automation[] {
+        return this.automations.filter(automation => automation.isGeneratedInstrument !== true);
+    }
+
+    /**
      * Gets or sets the number of dots applied to the duration of this beat.
      */
     public dots: number = 0;
@@ -942,9 +950,9 @@ export class Beat {
             this.voice.bar.index === 0 &&
             this.voice.bar.staff.index === 0
         ) {
-            this.automations.push(
-                Automation.buildInstrumentAutomation(false, 0, this.voice.bar.staff.track.playbackInfo.program)
-            );
+            const initialInstrument = Automation.buildInstrumentAutomation(false, 0, this.voice.bar.staff.track.playbackInfo.program);
+            initialInstrument.isGeneratedInstrument = true;
+            this.automations.push(initialInstrument);
         }
 
         switch (this.graceType) {

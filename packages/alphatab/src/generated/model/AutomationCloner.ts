@@ -11,6 +11,7 @@ import { SyncPointDataCloner } from "@coderline/alphatab/generated/model/SyncPoi
 export class AutomationCloner {
     public static clone(original: Automation): Automation {
         const clone = new Automation();
+        clone.isGeneratedInstrument = original.isGeneratedInstrument;
         clone.isLinear = original.isLinear;
         clone.type = original.type;
         clone.value = original.value;

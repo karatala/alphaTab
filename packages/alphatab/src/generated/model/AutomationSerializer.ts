@@ -23,6 +23,9 @@ export class AutomationSerializer {
             return null;
         }
         const o = new Map<string, unknown>();
+        if (obj.isGeneratedInstrument !== undefined) {
+            o.set("isgeneratedinstrument", obj.isGeneratedInstrument);
+        }
         o.set("islinear", obj.isLinear);
         o.set("type", obj.type as number);
         o.set("value", obj.value);
@@ -36,6 +39,9 @@ export class AutomationSerializer {
     }
     public static setProperty(obj: Automation, property: string, v: unknown): boolean {
         switch (property) {
+            case "isgeneratedinstrument":
+                obj.isGeneratedInstrument = v! as boolean;
+                return true;
             case "islinear":
                 obj.isLinear = v! as boolean;
                 return true;
