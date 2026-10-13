@@ -23,7 +23,7 @@ export class SustainPedalGlyph extends EffectGlyph {
         const y = cy + this.y;
         const h = this.height;
 
-        const markers = renderer.bar.sustainPedals;
+        const markers = renderer.bar.sustainPedalMarkers;
 
         const textWidth = this.renderer.smuflMetrics.glyphWidths.get(MusicFontSymbol.KeyboardPedalPed)!;
         const starSize = this.renderer.smuflMetrics.glyphWidths.get(MusicFontSymbol.KeyboardPedalUp)!;

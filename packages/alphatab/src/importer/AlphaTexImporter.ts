@@ -304,6 +304,15 @@ export class AlphaTexImporter extends ScoreImporter implements IAlphaTexImporter
                 sustainPedal.ratioPosition = beat.playbackStart / duration;
             }
         }
+        if (this._state.sustainPedalToBeat.size > 0) {
+            for (const track of this._state.score.tracks) {
+                for (const staff of track.staves) {
+                    for (const bar of staff.bars) {
+                        bar.finishSustainPedals();
+                    }
+                }
+            }
+        }
         return this._state.score;
     }
 

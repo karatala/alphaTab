@@ -330,6 +330,13 @@ export class Bar {
      */
     public sustainPedals: SustainPedalMarker[] = [];
 
+    /**
+     * Pedal markers calculated for display, including continuation markers.
+     * Source declarations remain in sustainPedals.
+     * @json_ignore
+     */
+    public sustainPedalMarkers: SustainPedalMarker[] = [];
+
     public get masterBar(): MasterBar {
         return this.staff.track.score.masterBars[this.index];
     }
@@ -363,7 +370,7 @@ export class Bar {
 
         return (
             this.simileMark !== SimileMark.None ||
-            this.sustainPedals.length > 0 ||
+            this.sustainPedals.length > 0 || this.sustainPedalMarkers.length > 0 ||
             this.barLineLeft !== BarLineStyle.Automatic ||
             this.barLineRight !== BarLineStyle.Automatic
         );
@@ -558,14 +565,22 @@ export class Bar {
             }
         }
 
+        this.finishSustainPedals();
+    }
+
+    /**
+     * Rebuilds pedal display markers from source declarations in staff order.
+     */
+    public finishSustainPedals(): void {
+        this.sustainPedalMarkers = [];
         // chain sustain pedal markers (and merge overlaps)
         const sustainPedals = this.sustainPedals;
         if (sustainPedals.length > 0) {
             let previousMarker: SustainPedalMarker | null = null;
-            this.sustainPedals = [];
 
-            if (this.previousBar && this.previousBar.sustainPedals.length > 0) {
-                previousMarker = this.previousBar.sustainPedals[this.previousBar.sustainPedals.length - 1];
+            if (this.previousBar && this.previousBar.sustainPedalMarkers.length > 0) {
+                previousMarker = this.previousBar.sustainPedalMarkers[this.previousBar.sustainPedalMarkers.length - 1];
+                previousMarker.nextPedalMarker = null;
                 if (previousMarker.pedalType === SustainPedalMarkerType.Up) {
                     previousMarker = null;
                 }
@@ -573,7 +588,11 @@ export class Bar {
 
             const isDown = previousMarker !== null && previousMarker.pedalType !== SustainPedalMarkerType.Up;
 
-            for (const marker of sustainPedals) {
+            for (const sourceMarker of sustainPedals) {
+                sourceMarker.bar = this;
+                const marker = new SustainPedalMarker();
+                marker.ratioPosition = sourceMarker.ratioPosition;
+                marker.pedalType = sourceMarker.pedalType;
                 if (previousMarker && previousMarker.pedalType !== SustainPedalMarkerType.Up) {
                     //duplicate or out-of-order markers
                     if (previousMarker.bar === this && marker.ratioPosition <= previousMarker.ratioPosition) {
@@ -589,22 +608,29 @@ export class Bar {
                 }
 
                 marker.bar = this;
-                this.sustainPedals.push(marker);
+                this.sustainPedalMarkers.push(marker);
                 previousMarker = marker;
             }
-        } else if (this.previousBar && this.previousBar.sustainPedals.length > 0) {
-            const lastMarker = this.previousBar.sustainPedals[this.previousBar.sustainPedals.length - 1];
+        } else if (this.previousBar && this.previousBar.sustainPedalMarkers.length > 0) {
+            const lastMarker = this.previousBar.sustainPedalMarkers[this.previousBar.sustainPedalMarkers.length - 1];
+            lastMarker.nextPedalMarker = null;
             if (lastMarker.pedalType !== SustainPedalMarkerType.Up) {
                 // create hold marker if the last marker on the previous bar is not "up"
                 const holdMarker = new SustainPedalMarker();
                 holdMarker.ratioPosition = 0;
                 holdMarker.bar = this;
                 holdMarker.pedalType = SustainPedalMarkerType.Hold;
-                this.sustainPedals.push(holdMarker);
+                this.sustainPedalMarkers.push(holdMarker);
 
                 lastMarker.nextPedalMarker = holdMarker;
                 holdMarker.previousPedalMarker = lastMarker;
             }
+        }
+        const finalMarker = this.sustainPedalMarkers[this.sustainPedalMarkers.length - 1];
+        const followingMarker = this.nextBar?.sustainPedalMarkers[0];
+        if (finalMarker && finalMarker.pedalType !== SustainPedalMarkerType.Up && followingMarker) {
+            finalMarker.nextPedalMarker = followingMarker;
+            followingMarker.previousPedalMarker = finalMarker;
         }
     }
 

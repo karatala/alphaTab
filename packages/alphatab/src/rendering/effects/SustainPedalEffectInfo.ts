@@ -24,7 +24,7 @@ export class SustainPedalEffectInfo extends EffectInfo {
     }
 
     public shouldCreateGlyph(_settings: Settings, beat: Beat): boolean {
-        return beat.voice.index === 0 && beat.index === 0 && beat.voice.bar.sustainPedals.length > 0;
+        return beat.voice.index === 0 && beat.index === 0 && beat.voice.bar.sustainPedalMarkers.length > 0;
     }
 
     public createNewGlyph(_renderer: BarRendererBase, _beat: Beat): EffectGlyph {
