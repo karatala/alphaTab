@@ -44,6 +44,13 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
     private _pendingProjectChange: PendingProjectRenderChange | null = null;
     private _projectRenderInFlight: boolean = false;
     private _projectState: ProjectRenderState | null = null;
+    private readonly _workerErrorHandler = () => {
+        this._pendingProjectChange = null;
+        this._projectRenderInFlight = false;
+        const error = new Error('Notation could not be drawn. Check the connection and reopen the application.');
+        error.name = 'AlphaTabWorkerError';
+        (this.error as EventEmitterOfT<Error>).trigger(error);
+    };
 
     private _mainPerformanceStartedAt: number | null = null;
     private _mainPerformancePhases: Map<string, { firstStartedAt: number; duration: number; count: number; maximumDelivery: number }> = new Map();
@@ -53,6 +60,7 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
     public constructor(api: AlphaTabApiBase<T>, worker: IAlphaTabRenderingWorker) {
         this._api = api;
         this._worker = worker;
+        (this._worker as unknown as Worker).addEventListener('error', this._workerErrorHandler);
         this._worker.postMessage({
             cmd: 'alphaTab.initialize',
             settings: this._serializeSettingsForWorker(api.settings)
@@ -62,6 +70,7 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
 
     public destroy(): void {
         this._beginMainPerformance();
+        (this._worker as unknown as Worker).removeEventListener('error', this._workerErrorHandler);
         this._worker.terminate();
     }
 
