@@ -128,7 +128,7 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
     }
 
     private _measureMainCallbacks(name: string, workerSentAt: number | undefined, operation: () => void): void {
-        if (this._mainPerformanceStartedAt === null) {
+        if (this._mainPerformanceStartedAt === null || workerSentAt === undefined) {
             operation();
             return;
         }
@@ -205,8 +205,8 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
                 this._measureMainCallbacks('render-finished callbacks', data.workerSentAt, () => (this.renderFinished as EventEmitterOfT<RenderFinishedEventArgs>).trigger(data.result));
                 break;
             case 'alphaTab.postRenderFinished':
-                const mainMessageStartedAt = data.measurePerformance ? performance.now() : 0;
-                const reportMainPerformance = this._takeMainPerformanceReport(mainMessageStartedAt);
+                const mainMessageStartedAt = performance.now();
+                const reportMainPerformance = data.measurePerformance ? this._takeMainPerformanceReport(mainMessageStartedAt) : null;
                 const score = this._api.score;
                 const hasPendingChange = this._pendingProjectChange !== null;
                 const boundsReconstructionStartedAt = data.measurePerformance ? performance.now() : 0;
