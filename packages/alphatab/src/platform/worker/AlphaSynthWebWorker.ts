@@ -1,6 +1,5 @@
-import { Environment } from '@coderline/alphatab/Environment';
 import { Logger } from '@coderline/alphatab/Logger';
-import { JsonConverter } from '@coderline/alphatab/model/JsonConverter';
+import { MidiFileJsonConverter } from '@coderline/alphatab/midi/MidiFileJsonConverter';
 import { AlphaSynthWorkerSynthOutput } from '@coderline/alphatab/platform/worker/AlphaSynthWorkerSynthOutput';
 import type {
     IAlphaSynthWorkerMessage,
@@ -30,7 +29,7 @@ export class AlphaSynthWebWorker {
     }
 
     public static init(): void {
-        new AlphaSynthWebWorker(Environment.getGlobalWorkerScope<IAlphaSynthWorkerMessage>());
+        new AlphaSynthWebWorker(globalThis as unknown as IAlphaTabWorkerGlobalScope<IAlphaSynthWorkerMessage>);
     }
 
     public handleMessage(e: MessageEvent<IAlphaSynthWorkerMessage>): void {
@@ -114,7 +113,7 @@ export class AlphaSynthWebWorker {
                 this._player.stop();
                 break;
             case 'alphaSynth.playOneTimeMidiFile':
-                this._player.playOneTimeMidiFile(JsonConverter.jsObjectToMidiFile(data.midi));
+                this._player.playOneTimeMidiFile(MidiFileJsonConverter.jsObjectToMidiFile(data.midi));
                 break;
             case 'alphaSynth.loadSoundFontBytes':
                 this._player.loadSoundFont(data.data, data.append);
@@ -123,7 +122,7 @@ export class AlphaSynthWebWorker {
                 this._player.resetSoundFonts();
                 break;
             case 'alphaSynth.loadMidi':
-                this._player.loadMidiFile(JsonConverter.jsObjectToMidiFile(data.midi));
+                this._player.loadMidiFile(MidiFileJsonConverter.jsObjectToMidiFile(data.midi));
                 break;
             case 'alphaSynth.setChannelMute':
                 this._player.setChannelMute(data.channel, data.mute);
@@ -169,7 +168,7 @@ export class AlphaSynthWebWorker {
                     exporterId = data.exporterId;
                     exporter = this._player.exportAudio(
                         data.options,
-                        JsonConverter.jsObjectToMidiFile(data.midi),
+                        MidiFileJsonConverter.jsObjectToMidiFile(data.midi),
                         data.syncPoints,
                         data.transpositionPitches
                     );
@@ -271,7 +270,7 @@ export class AlphaSynthWebWorker {
     public onMidiEventsPlayed(args: MidiEventsPlayedEventArgs): void {
         this._main.postMessage({
             cmd: 'alphaSynth.midiEventsPlayed',
-            events: args.events.map(JsonConverter.midiEventToJsObject)
+            events: args.events.map(MidiFileJsonConverter.midiEventToJsObject)
         });
     }
 

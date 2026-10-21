@@ -1,4 +1,4 @@
-import { Environment } from '@coderline/alphatab/Environment';
+import { prepareForPostMessage } from '@coderline/alphatab/platform/worker/prepareForPostMessage';
 import {
     EventEmitter,
     EventEmitterOfT,
@@ -61,7 +61,7 @@ export class AlphaSynthWorkerSynthOutput implements ISynthOutput {
     public addSamples(samples: Float32Array): void {
         this._main.postMessage({
             cmd: 'alphaSynth.output.addSamples',
-            samples: Environment.prepareForPostMessage(samples)
+            samples: prepareForPostMessage(samples)
         });
     }
 
