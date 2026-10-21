@@ -203,8 +203,6 @@ export class AlphaSynthAudioWorkletOutput extends AlphaSynthWebAudioOutputBase {
     private readonly _settings: Settings;
     private _boundHandleMessage: (e: MessageEvent<IAlphaSynthWorkerMessage>) => void;
 
-    private _pendingEvents?: IAlphaSynthWorkerMessage[];
-
     public constructor(settings: Settings) {
         super();
         this._settings = settings;
@@ -214,48 +212,36 @@ export class AlphaSynthAudioWorkletOutput extends AlphaSynthWebAudioOutputBase {
     public override open(bufferTimeInMilliseconds: number) {
         super.open(bufferTimeInMilliseconds);
         this._bufferTimeInMilliseconds = bufferTimeInMilliseconds;
-        this.onReady();
+        const context = this.context!;
+        BrowserUiFacade.createAlphaSynthAudioWorklet(context, this._settings).then(
+            () => {
+                if (this.context === context) {
+                    this.onReady();
+                }
+            },
+            (reason: unknown) => {
+                Logger.error('WebAudio', `Audio Worklet creation failed: reason=${reason}`);
+            }
+        );
     }
 
     public override play(): void {
         super.play();
         const ctx = this.context!;
 
-        // clear any pending events buffered from previous playback rounds
-        // we just want the events which come in after the play call until the worklet is created
-        if (this._pendingEvents) {
-            this._pendingEvents = undefined;
-        }
-
-        // create a script processor node which will replace the silence with the generated audio
-        BrowserUiFacade.createAlphaSynthAudioWorklet(ctx, this._settings).then(
-            () => {
-                this._worklet = new AudioWorkletNode(ctx!, 'alphatab', {
-                    numberOfOutputs: 1,
-                    outputChannelCount: [2],
-                    processorOptions: {
-                        bufferTimeInMilliseconds: this._bufferTimeInMilliseconds
-                    }
-                }) as AudioWorkletNode<IAlphaSynthWorkerMessage>;
-
-                this._worklet.port.addEventListener('message', this._boundHandleMessage);
-                this._worklet.port.start();
-                this.source!.connect(this._worklet);
-                this.source!.start(0);
-                this._worklet.connect(ctx!.destination);
-
-                const pending = this._pendingEvents;
-                if (pending) {
-                    for (const e of pending) {
-                        this._worklet.port.postMessage(e);
-                    }
-                    this._pendingEvents = undefined;
-                }
-            },
-            (reason: any) => {
-                Logger.error('WebAudio', `Audio Worklet creation failed: reason=${reason}`);
+        this._worklet = new AudioWorkletNode(ctx, 'alphatab', {
+            numberOfOutputs: 1,
+            outputChannelCount: [2],
+            processorOptions: {
+                bufferTimeInMilliseconds: this._bufferTimeInMilliseconds
             }
-        );
+        }) as AudioWorkletNode<IAlphaSynthWorkerMessage>;
+
+        this._worklet.port.addEventListener('message', this._boundHandleMessage);
+        this._worklet.port.start();
+        this.source!.connect(this._worklet);
+        this.source!.start(0);
+        this._worklet.connect(ctx.destination);
     }
 
     private _handleMessage(e: MessageEvent<IAlphaSynthWorkerMessage>) {
@@ -281,16 +267,12 @@ export class AlphaSynthAudioWorkletOutput extends AlphaSynthWebAudioOutputBase {
             this._worklet.disconnect();
         }
         this._worklet = null;
-        this._pendingEvents = undefined;
     }
 
     private _postWorkerMessage(message: IAlphaSynthWorkerMessage) {
         const worklet = this._worklet;
         if (worklet) {
             worklet.port.postMessage(message);
-        } else {
-            this._pendingEvents ??= [];
-            this._pendingEvents.push(message);
         }
     }
 
