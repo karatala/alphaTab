@@ -14,7 +14,7 @@ export class SynthConstants {
     public static readonly MinVolume: number = 0;
     public static readonly MinProgram: number = 0;
     public static readonly MaxProgram: number = 127;
-    public static readonly MinPlaybackSpeed: number = 0.125;
+    public static readonly MinPlaybackSpeed: number = 0.1;
     public static readonly MaxPlaybackSpeed: number = 8;
     public static readonly PercussionChannel: number = 9;
     public static readonly PercussionBank: number = 128;
