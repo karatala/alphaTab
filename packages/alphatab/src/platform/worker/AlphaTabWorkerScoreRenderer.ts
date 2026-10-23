@@ -300,6 +300,13 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
     private _postProjectChange(score: Score | null, trackIndexes: number[] | null, change: ProjectRenderChange, renderHints: RenderHints): void {
         this._beginMainPerformance(renderHints);
         const bars = [];
+        const masterBarNotation = [];
+        if (score) {
+            for (let barIndex = change.firstMasterBar; barIndex <= Math.min(change.lastMasterBar, score.masterBars.length - 1); barIndex++) {
+                const masterBar = score.masterBars[barIndex];
+                masterBarNotation.push({ barIndex, isDoubleBar: masterBar.isDoubleBar, timeSignatureCommon: masterBar.timeSignatureCommon });
+            }
+        }
         for (const trackIndex of change.trackIndexes) {
             const track = score?.tracks[trackIndex];
             if (!track) {
@@ -314,7 +321,7 @@ export class AlphaTabWorkerScoreRenderer<T> implements IScoreRenderer {
         }
         this._projectRenderInFlight = true;
         this._projectState = { operationId: change.operationId, projectId: change.projectId, renderHints, revision: change.revision, trackIndexes };
-        this._worker.postMessage({ ...change, bars: Environment.prepareForPostMessage(bars), cmd: 'alphaTab.renderProjectChange', renderHints, selectedTrackIndexes: Environment.prepareForPostMessage(trackIndexes) });
+        this._worker.postMessage({ ...change, bars: Environment.prepareForPostMessage(bars), masterBarNotation, cmd: 'alphaTab.renderProjectChange', renderHints, selectedTrackIndexes: Environment.prepareForPostMessage(trackIndexes) });
     }
 
     public renderProjectChange(score: Score | null, trackIndexes: number[] | null, change: ProjectRenderChange, renderHints: RenderHints): void {

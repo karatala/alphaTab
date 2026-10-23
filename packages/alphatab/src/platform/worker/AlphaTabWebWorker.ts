@@ -248,6 +248,15 @@ export class AlphaTabWebWorker {
                 replacements.push({ bar, barIndex: entry.barIndex, staff });
             }
             const affectedStaves = new Set<Staff>();
+            if (data.masterBarNotation.some(entry => !score.masterBars[entry.barIndex])) {
+                this._main.postMessage({ cmd: 'alphaTab.projectSyncRequired', operationId: data.operationId, projectId: data.projectId });
+                return;
+            }
+            for (const entry of data.masterBarNotation) {
+                const masterBar = score.masterBars[entry.barIndex];
+                masterBar.isDoubleBar = entry.isDoubleBar;
+                masterBar.timeSignatureCommon = entry.timeSignatureCommon;
+            }
             for (const replacement of replacements) {
                 replacement.staff.bars[replacement.barIndex] = replacement.bar;
                 affectedStaves.add(replacement.staff);

@@ -28,6 +28,12 @@ export interface AlphaTabProjectBarTransfer {
     trackIndex: number;
 }
 
+export interface AlphaTabProjectMasterBarNotationTransfer {
+    barIndex: number;
+    isDoubleBar: boolean;
+    timeSignatureCommon: boolean;
+}
+
 export type AlphaTabRenderResultState = Partial<AlphaTabProjectRenderState> & {
     measurePerformance?: true;
     workerSentAt?: number;
@@ -64,7 +70,7 @@ export type IAlphaTabWorkerMessage =
           renderHints: RenderHints | undefined;
           mainSentAt?: number;
       }
-    | ({ cmd: 'alphaTab.renderProjectChange'; bars: AlphaTabProjectBarTransfer[]; renderHints: RenderHints; selectedTrackIndexes: number[] | null } & ProjectRenderChange)
+    | ({ cmd: 'alphaTab.renderProjectChange'; bars: AlphaTabProjectBarTransfer[]; masterBarNotation: AlphaTabProjectMasterBarNotationTransfer[]; renderHints: RenderHints; selectedTrackIndexes: number[] | null } & ProjectRenderChange)
     // worker -> main
     | ({ cmd: 'alphaTab.preRender'; resize: boolean } & AlphaTabRenderResultState)
     | ({ cmd: 'alphaTab.partialRenderFinished'; result: RenderFinishedEventArgs; workerRenderDurationMs?: number } & AlphaTabRenderResultState)
