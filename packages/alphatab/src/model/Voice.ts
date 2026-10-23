@@ -133,12 +133,10 @@ export class Voice {
             beat.nextBeat = this.beats[beat.index + 1];
             beat.nextBeat.previousBeat = beat;
         } else if (beat.isLastOfVoice && beat.voice.bar.nextBar) {
-            const nextVoice: Voice = this.bar.nextBar!.voices[this.index];
-            if (nextVoice.beats.length > 0) {
-                beat.nextBeat = nextVoice.beats[0];
+            const nextVoice: Voice | undefined = this.bar.nextBar!.voices[this.index];
+            beat.nextBeat = nextVoice?.beats[0] ?? null;
+            if (beat.nextBeat) {
                 beat.nextBeat.previousBeat = beat;
-            } else {
-                beat.nextBeat!.previousBeat = beat;
             }
         }
 

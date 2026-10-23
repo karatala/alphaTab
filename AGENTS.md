@@ -208,3 +208,7 @@ instead of on paperwork, which is better for everyone.
 - [.github/ISSUE_TEMPLATE/bug_report_form.yml](./.github/ISSUE_TEMPLATE/bug_report_form.yml)
 - [.github/pull_request_template.md](./.github/pull_request_template.md)
 - [code-of-conduct.md](./code-of-conduct.md)
+
+## Local application behavior
+
+- Voice._chain clears nextBeat when the following bar has no beat in that voice. Do not dereference null or retain a removed beat. A populated adjacent voice keeps the normal reciprocal beat link; do not insert model rests to repair an empty voice.
