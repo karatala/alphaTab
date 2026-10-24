@@ -104,8 +104,9 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
         const performanceStartedAt = renderHints.measurePerformance ? performance.now() : 0;
         this._reuseViewPort = renderHints.reuseViewport ?? false;
         const firstModifiedMasterBar = renderHints.firstChangedMasterBar!;
+        const lastModifiedMasterBar = renderHints.lastChangedMasterBar ?? this.lastBarIndex;
         // first update existing systems as needed
-        const systemIndex = this._systems.findIndex(system => {
+        let systemIndex = this._systems.findIndex(system => {
             const firstMasterBar = system.masterBarsRenderers[0].masterBar.index;
             const lastMasterBar = system.masterBarsRenderers[system.masterBarsRenderers.length - 1].masterBar.index;
             return firstMasterBar <= firstModifiedMasterBar && firstModifiedMasterBar <= lastMasterBar;
@@ -115,10 +116,16 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
             return false;
         }
 
+        // A narrower first bar can move back into the preceding automatically fitted system.
+        if (systemIndex > 0 && this._systems[systemIndex].firstBarIndex === firstModifiedMasterBar && this.getBarsPerSystem(systemIndex) === -1) {
+            systemIndex--;
+        }
+
         const removedSystems = this._systems.splice(systemIndex, this._systems.length - systemIndex);
         const firstRemovedSystem = removedSystems[0];
         const firstBarIndex = firstRemovedSystem.firstBarIndex;
         let y = firstRemovedSystem.y;
+        const removedSystemBounds = this.renderer.boundsLookup!.staffSystems.slice(systemIndex);
         this.renderer.boundsLookup!.clearFromMasterBar(firstBarIndex);
         this._barsFromPreviousSystem = [];
         this.beamingRuleLookups.clear();
@@ -146,7 +153,7 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
             currentBarIndex = layoutResult.nextBarIndex;
             rebuiltSystemCount++;
             const previousSystemAtPosition = removedSystems[rebuiltSystemCount - 1];
-            if (rebuiltSystemCount >= 2 && previousSystemAtPosition && layoutResult.system.lastBarIndex === previousSystemAtPosition.lastBarIndex) {
+            if (rebuiltSystemCount >= 2 && layoutResult.system.firstBarIndex > lastModifiedMasterBar && previousSystemAtPosition && layoutResult.system.lastBarIndex === previousSystemAtPosition.lastBarIndex) {
                 contextIsStable = true;
                 break;
             }
@@ -170,7 +177,7 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
                 if (preservedPartialArgs) {
                     preservedPartialArgs.y += tailOffsetY * this.renderer.settings.display.scale;
                 }
-                preservedSystem.buildBoundingsLookup(0, 0);
+                this.renderer.boundsLookup!.restoreStaffSystem(removedSystemBounds[rebuiltSystemCount + preservedSystemIndex], tailOffsetY * this.renderer.settings.display.scale);
                 this.reregisterPartial(preservedTailPartialIds[preservedSystemIndex]);
             }
             const lastSystem = this._systems[this._systems.length - 1];

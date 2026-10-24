@@ -428,6 +428,31 @@ export class BoundsLookup {
         this._currentStaffSystem = bounds;
     }
 
+    /** Restores finished bounds from an unchanged system after a partial vertical layout. @internal */
+    public restoreStaffSystem(bounds: StaffSystemBounds, offsetY: number): void {
+        this.addStaffSystem(bounds);
+        bounds.visualBounds.y += offsetY;
+        bounds.realBounds.y += offsetY;
+        for (const masterBar of bounds.bars) {
+            this.addMasterBar(masterBar);
+            masterBar.lineAlignedBounds.y += offsetY;
+            masterBar.visualBounds.y += offsetY;
+            masterBar.realBounds.y += offsetY;
+            for (const bar of masterBar.bars) {
+                bar.visualBounds.y += offsetY;
+                bar.realBounds.y += offsetY;
+                for (const beat of bar.beats) {
+                    this.addBeat(beat);
+                    beat.visualBounds.y += offsetY;
+                    beat.realBounds.y += offsetY;
+                    for (const note of beat.notes ?? []) {
+                        note.noteHeadBounds.y += offsetY;
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * Adds a new master bar to the lookup.
      * @param bounds The master bar bounds to add.
