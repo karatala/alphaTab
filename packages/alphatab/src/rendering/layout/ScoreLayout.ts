@@ -112,6 +112,9 @@ export abstract class ScoreLayout {
             if (this.doUpdateForBars(renderHints!)) {
                 return;
             }
+            // A declined partial update rebuilds every system, including removed beat bounds.
+            this.renderer.boundsLookup?.clearFromMasterBar(0);
+            renderHints!.useBoundsDelta = false;
         }
 
         this._lazyPartials.clear();
