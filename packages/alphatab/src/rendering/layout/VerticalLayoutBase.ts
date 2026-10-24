@@ -166,6 +166,7 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
         const preservedTailSystems = contextIsStable ? removedSystems.slice(rebuiltSystemCount) : [];
         const lastRebuiltBarIndex = currentBarIndex - 1;
         if (contextIsStable) {
+            const lastLookaheadBarIndex = this._barsFromPreviousSystem.at(-1)?.lastMasterBarIndex ?? -1;
             this._barsFromPreviousSystem = [];
             const tailOffsetY = preservedTailSystems.length > 0 ? y - preservedTailSystems[0].y : 0;
             this._systems.push(...preservedTailSystems);
@@ -178,6 +179,14 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
                     preservedPartialArgs.y += tailOffsetY * this.renderer.settings.display.scale;
                 }
                 this.renderer.boundsLookup!.restoreStaffSystem(removedSystemBounds[rebuiltSystemCount + preservedSystemIndex], tailOffsetY * this.renderer.settings.display.scale);
+                // Assembly can register reverted lookahead bars. Restore only their retained systems.
+                if (preservedSystem.firstBarIndex <= lastLookaheadBarIndex) {
+                    for (const staff of preservedSystem.allStaves) {
+                        for (const renderer of staff.barRenderers) {
+                            this.registerBarRenderer(staff.staffId, renderer);
+                        }
+                    }
+                }
                 this.reregisterPartial(preservedTailPartialIds[preservedSystemIndex]);
             }
             const lastSystem = this._systems[this._systems.length - 1];
@@ -188,14 +197,6 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
             }
         }
         this._allMasterBarRenderers = this._systems.flatMap(system => system.masterBarsRenderers);
-        this._barRendererLookup.clear();
-        for (const finalSystem of this._systems) {
-            for (const staff of finalSystem.allStaves) {
-                for (const renderer of staff.barRenderers) {
-                    this.registerBarRenderer(staff.staffId, renderer);
-                }
-            }
-        }
         renderHints.lastChangedMasterBar = lastRebuiltBarIndex;
         const scoreLayoutCompletedAt = renderHints.measurePerformance ? performance.now() : 0;
 
