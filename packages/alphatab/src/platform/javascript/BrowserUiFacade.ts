@@ -56,6 +56,7 @@ enum ResultState {
  */
 interface ResultPlaceholder extends HTMLElement {
     layoutResultId?: string;
+    isInViewport?: boolean;
     resultState: ResultState;
     renderedResult?: Element[];
     renderedResultId?: string;
@@ -92,6 +93,10 @@ export class BrowserUiFacade implements IUiFacade<unknown> {
     private _totalResultCount: number = 0;
     private _initialTrackIndexes: number[] | null = null;
     private _intersectionObserver: IntersectionObserver;
+    private _renderViewportObserver: ResizeObserver | null = null;
+    private _renderViewportWidth: number = -1;
+    private _renderViewportHeight: number = -1;
+    private _rootVisible: boolean = false;
     private _barToElementLookup: Map<number, HTMLElement> = new Map<number, HTMLElement>();
     private _resultIdToElementLookup: Map<string, ResultPlaceholder> = new Map<string, ResultPlaceholder>();
     private _webFont!: RegisteredWebFont;
@@ -150,16 +155,48 @@ export class BrowserUiFacade implements IUiFacade<unknown> {
         this._intersectionObserver.observe(rootElement);
     }
 
+    public setRenderViewport(viewport: HTMLElement): void {
+        this._renderViewportObserver?.disconnect();
+        this._renderViewportWidth = -1;
+        this._renderViewportHeight = -1;
+        const refreshViewport = () => {
+            const width = viewport.clientWidth;
+            const height = viewport.clientHeight;
+            if (width === this._renderViewportWidth && height === this._renderViewportHeight) {
+                return;
+            }
+            this._renderViewportWidth = width;
+            this._renderViewportHeight = height;
+            this._intersectionObserver.disconnect();
+            this._intersectionObserver = new IntersectionObserver(this._onElementVisibilityChanged.bind(this), {
+                root: viewport,
+                rootMargin: `${height}px ${width}px`,
+                threshold: [0, 0.01, 1]
+            });
+            if (!this._rootVisible) {
+                this._intersectionObserver.observe((this.rootContainer as HtmlElementContainer).element);
+            }
+            for (const placeholder of this._resultIdToElementLookup.values()) {
+                this._intersectionObserver.observe(placeholder);
+            }
+        };
+        this._renderViewportObserver = new ResizeObserver(refreshViewport);
+        this._renderViewportObserver.observe(viewport);
+        refreshViewport();
+    }
+
     private _onElementVisibilityChanged(entries: IntersectionObserverEntry[]) {
         for (const e of entries) {
             const htmlElement = e.target as HTMLElement;
             if (htmlElement === (this.rootContainer as HtmlElementContainer).element) {
                 if (e.isIntersecting) {
+                    this._rootVisible = true;
                     (this.rootContainerBecameVisible as EventEmitter).trigger();
                     this._intersectionObserver.unobserve((this.rootContainer as HtmlElementContainer).element);
                 }
             } else if ('layoutResultId' in htmlElement && this._api.settings.core.enableLazyLoading) {
                 const placeholder = htmlElement as ResultPlaceholder;
+                placeholder.isInViewport = e.isIntersecting;
                 if (e.isIntersecting) {
                     // missing result or result not matching layout -> request render
                     if (placeholder.renderedResultId !== placeholder.layoutResultId) {
@@ -252,6 +289,8 @@ export class BrowserUiFacade implements IUiFacade<unknown> {
     }
 
     public destroy(): void {
+        this._renderViewportObserver?.disconnect();
+        this._intersectionObserver.disconnect();
         const element = (this.rootContainer as HtmlElementContainer).element;
         element.innerHTML = '';
         const webFont = this._webFont;
@@ -659,6 +698,10 @@ export class BrowserUiFacade implements IUiFacade<unknown> {
         placeholder.resultState = ResultState.RenderDone;
         placeholder.renderedResultId = renderResult.id;
         placeholder.renderedResult = Array.from(placeholder.children);
+        if (this._api.settings.core.enableLazyLoading && placeholder.isInViewport === false) {
+            placeholder.replaceChildren();
+            placeholder.resultState = ResultState.Detached;
+        }
     }
 
     public beginAppendRenderResults(renderResult: RenderFinishedEventArgs | null): void {

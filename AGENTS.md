@@ -212,3 +212,5 @@ instead of on paperwork, which is better for everyone.
 ## Local application behavior
 
 - Voice._chain clears nextBeat when the following bar has no beat in that voice. Do not dereference null or retain a removed beat. A populated adjacent voice keeps the normal reciprocal beat link; do not insert model rests to repair an empty voice.
+
+- BrowserUiFacade.setRenderViewport accepts the application scroll element and observes lazy fragments with one element width/height of overscan on each side. ResizeObserver updates pixel margins without clearing cached fragment state. Keep late offscreen render replies detached until visibility returns, and disconnect both observers on disposal. This changes graphical attachment, not score layout or musical timing.
