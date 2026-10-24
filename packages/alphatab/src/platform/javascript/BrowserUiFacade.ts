@@ -680,7 +680,8 @@ export class BrowserUiFacade implements IUiFacade<unknown> {
                 placeholder = document.createElement('div') as unknown as ResultPlaceholder;
                 canvasElement.appendChild(placeholder);
             }
-            const reuseRenderedResult = renderResult.reuseViewport && placeholder.renderedResultId === renderResult.id;
+            // Pending SVG replies can be rejected by the new worker revision and must be requested again.
+            const reuseLayoutResult = renderResult.reuseViewport && placeholder.layoutResultId === renderResult.id && placeholder.resultState !== ResultState.RenderRequested;
             placeholder.style.zIndex = '1';
             placeholder.style.position = 'absolute';
             placeholder.style.left = `${renderResult.x}px`;
@@ -689,7 +690,7 @@ export class BrowserUiFacade implements IUiFacade<unknown> {
             placeholder.style.height = `${renderResult.height}px`;
             placeholder.style.display = 'inline-block';
             placeholder.layoutResultId = renderResult.id;
-            if (!reuseRenderedResult) {
+            if (!reuseLayoutResult) {
                 placeholder.resultState = ResultState.LayoutDone;
                 placeholder.renderedResultId = undefined;
                 placeholder.renderedResult = undefined;
@@ -707,7 +708,7 @@ export class BrowserUiFacade implements IUiFacade<unknown> {
                 }
             }
 
-            if (this._api.settings.core.enableLazyLoading) {
+            if (this._api.settings.core.enableLazyLoading && !reuseLayoutResult) {
                 // re-observe to fire event
                 this._intersectionObserver.unobserve(placeholder);
                 this._intersectionObserver.observe(placeholder);
