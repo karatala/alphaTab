@@ -1295,6 +1295,7 @@ export class MidiFileGenerator {
     }
 
     private static _getNoteVelocity(note: Note): number {
+        if (note.playbackVelocity !== undefined) return Math.max(1, Math.min(127, Math.round(note.playbackVelocity)));
         let adjustment: number = 0;
         // more silent on hammer destination
         if (!note.beat.voice.bar.staff.isPercussion && note.hammerPullOrigin) {

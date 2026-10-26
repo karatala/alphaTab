@@ -580,6 +580,13 @@ export class Note {
     public dynamics: DynamicValue = DynamicValue.F;
 
     /**
+     * Exact attack velocity projected by an application. Not a saved notation declaration.
+     * @clone_ignore
+     * @json_ignore
+     */
+    public playbackVelocity?: number;
+
+    /**
      * @clone_ignore
      * @json_ignore
      */
