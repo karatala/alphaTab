@@ -586,6 +586,12 @@ export class Note {
      */
     public playbackVelocity?: number;
 
+    /** Application attack offsets by unshifted playback tick.
+     * @clone_ignore
+     * @json_ignore
+     */
+    public playbackStartOffsets?: Map<number, number>;
+
     /**
      * @clone_ignore
      * @json_ignore

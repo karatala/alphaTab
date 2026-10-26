@@ -971,7 +971,7 @@ export class MidiFileGenerator {
             rasgueadoInfo == null && note.isStringed && note.string <= brushInfo.length
                 ? brushInfo[note.string - 1]
                 : 0;
-        const noteStart: number = beatStart + brushOffset;
+        const noteStart: number = beatStart + brushOffset + (note.playbackStartOffsets?.get(Math.round(beatStart)) ?? 0);
         const noteDuration: MidiNoteDuration = this._getNoteDuration(note, beatDuration, tempoOnBeatStart);
         noteDuration.untilTieOrSlideEnd -= brushOffset;
         noteDuration.noteOnly -= brushOffset;
