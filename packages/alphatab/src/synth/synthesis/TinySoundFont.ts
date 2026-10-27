@@ -3,6 +3,7 @@
 // TypeScript port for alphaTab: (C) 2020 by Daniel Kuschny
 // Licensed under: MPL-2.0
 import {
+    type AlphaTabMetronomeEvent,
     type ControlChangeEvent,
     type MidiEvent,
     MidiEventType,

@@ -15,6 +15,8 @@ import { TabRhythmMode } from "@coderline/alphatab/NotationSettings";
  * @target web
  */
 export interface NotationSettingsJson {
+    /** Draw one centered measure rest for a rest-only bar. */
+    collapseRestBars?: boolean;
     /**
      * The mode to use for display and play music notation elements.
      * @since 0.9.6

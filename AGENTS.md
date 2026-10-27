@@ -221,3 +221,5 @@ instead of on paperwork, which is better for everyone.
 
 - Note.playbackStartOffsets is an application-only runtime map, ignored by JSON and cloning. MidiFileGenerator applies the entry for the original beatStart to noteStart, preserving ordinary native behavior when absent and applying the same shifted start to its note effects. The application owns repeat-specific correction projection.
 - Note.playbackDurations is an application-only runtime map, ignored by JSON and cloning. A matching original beatStart supplies the performed noteOnly, untilTieOrSlideEnd and letRingEnd lengths after brush adjustments. Without an entry, retain native duration behavior. The application owns saved duration corrections and their repeat-specific projection.
+
+- Keep NotationSettingsJson.collapseRestBars aligned with the local source setting and its existing serializer. This optional JSON declaration does not change the false runtime default.
