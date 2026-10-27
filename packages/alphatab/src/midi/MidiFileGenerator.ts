@@ -976,6 +976,12 @@ export class MidiFileGenerator {
         noteDuration.untilTieOrSlideEnd -= brushOffset;
         noteDuration.noteOnly -= brushOffset;
         noteDuration.letRingEnd -= brushOffset;
+        const projectedDuration = note.playbackDurations?.get(Math.round(beatStart));
+        if (projectedDuration !== undefined) {
+            noteDuration.untilTieOrSlideEnd = projectedDuration;
+            noteDuration.noteOnly = projectedDuration;
+            noteDuration.letRingEnd = projectedDuration;
+        }
         const velocity: number = MidiFileGenerator._getNoteVelocity(note);
         const channel: number = this._determineChannel(track, note);
         let initialBend: number = 0;

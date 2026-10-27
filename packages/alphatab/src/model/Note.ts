@@ -592,6 +592,12 @@ export class Note {
      */
     public playbackStartOffsets?: Map<number, number>;
 
+    /** Application note lengths by unshifted attack tick.
+     * @clone_ignore
+     * @json_ignore
+     */
+    public playbackDurations?: Map<number, number>;
+
     /**
      * @clone_ignore
      * @json_ignore
