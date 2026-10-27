@@ -1364,6 +1364,11 @@ export class MidiFileGenerator {
 
                 break;
         }
+        if (beat.fade === FadeType.FadeOut || beat.fade === FadeType.VolumeSwell) {
+            const volume = MidiFileGenerator._toChannelShort(track.playbackInfo.volume);
+            this._handler.addControlChange(track.index, beatStart + beatDuration, track.playbackInfo.primaryChannel, ControllerType.VolumeCoarse, volume);
+            this._handler.addControlChange(track.index, beatStart + beatDuration, track.playbackInfo.secondaryChannel, ControllerType.VolumeCoarse, volume);
+        }
     }
 
     private _generateFadeSteps(

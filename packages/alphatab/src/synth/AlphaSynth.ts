@@ -191,6 +191,10 @@ export class AlphaSynthBase implements IAlphaSynth {
     }
 
     public set timePosition(value: number) {
+        if (this.sequencer.isPlayingOneTimeMidi) {
+            this._stopOneTimeMidi(value);
+            return;
+        }
         Logger.debug('AlphaSynth', `Seeking to position ${value}ms (main)`);
 
         // tell the sequencer to jump to the given position
@@ -343,6 +347,9 @@ export class AlphaSynthBase implements IAlphaSynth {
     }
 
     public play(): boolean {
+        if (this._isMidiLoaded && this.sequencer.isPlayingOneTimeMidi) {
+            this._stopOneTimeMidi();
+        }
         if (this.state !== PlayerState.Paused || !this._isMidiLoaded) {
             return false;
         }
@@ -415,7 +422,10 @@ export class AlphaSynthBase implements IAlphaSynth {
 
     public playOneTimeMidiFile(midi: MidiFile): void {
         if (this.sequencer.isPlayingOneTimeMidi) {
-            this._stopOneTimeMidi();
+            this.output.pause();
+            this.output.resetSamples();
+            this.playedEventsQueue.clear();
+            this.synthesizer.resetSoft();
         } else {
             // pause current playback.
             this.pause();
@@ -610,12 +620,18 @@ export class AlphaSynthBase implements IAlphaSynth {
         }
     }
 
-    private _stopOneTimeMidi() {
+    protected _stopOneTimeMidi(timePosition?: number) {
         this.output.pause();
         this.output.resetSamples();
         this.synthesizer.noteOffAll(true);
         this.sequencer.resetOneTimeMidi();
-        this.timePosition = this.sequencer.currentTime;
+        const position = timePosition ?? this.sequencer.currentTime;
+        this.sequencer.stop();
+        this.synthesizer.resetSoft();
+        this.state = PlayerState.Paused;
+        this._notPlayedSamples = 0;
+        this.playedEventsQueue.clear();
+        this.timePosition = position;
     }
 
     private _createPositionChangedEventArgs(isSeek: boolean) {
