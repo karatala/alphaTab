@@ -648,13 +648,13 @@ export class MidiFileSequencer {
     }
 
     public stop(): void {
-        if (this.isPlayingMain && this.mainPlaybackRange) {
-            this._currentState.currentTime = this.mainPlaybackRange.startTick;
-        } else {
-            this._currentState.currentTime = 0;
-        }
-
+        // AlphaSynth seeks to the range start after stopping. Begin its state replay at zero milliseconds.
+        this._currentState.currentTime = 0;
         this._currentState.eventIndex = 0;
+        this._currentState.syncPointIndex = 0;
+        this._currentState.tempoChangeIndex = 0;
+        this._currentState.currentTempo = this._currentState.tempoChanges[0]?.bpm ?? 120;
+        this._currentState.syncPointTempo = this._currentState.syncPoints[0]?.syncBpm ?? this._currentState.currentTempo;
     }
 
     public resetOneTimeMidi() {

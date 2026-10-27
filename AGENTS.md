@@ -223,3 +223,5 @@ instead of on paperwork, which is better for everyone.
 - Note.playbackDurations is an application-only runtime map, ignored by JSON and cloning. A matching original beatStart supplies the performed noteOnly, untilTieOrSlideEnd and letRingEnd lengths after brush adjustments. Without an entry, retain native duration behavior. The application owns saved duration corrections and their repeat-specific projection.
 
 - Keep NotationSettingsJson.collapseRestBars aligned with the local source setting and its existing serializer. This optional JSON declaration does not change the false runtime default.
+
+- MidiFileSequencer.stop clears the active stream position to zero milliseconds, its event/tempo/sync indexes and initial tempo state. AlphaSynth then seeks to the selected main range start through its existing replay path. Never assign a MIDI startTick to currentTime; equal tick/millisecond numbers can otherwise skip the replay at particular tempos. Keep count-in and one-time stream reset ownership unchanged.
