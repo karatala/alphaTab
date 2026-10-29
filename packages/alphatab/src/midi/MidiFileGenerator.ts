@@ -920,7 +920,7 @@ export class MidiFileGenerator {
     }
 
     private _needsSecondaryChannel(note: Note): boolean {
-        return note.hasBend || note.beat.hasWhammyBar || note.beat.vibrato !== VibratoType.None;
+        return note.hasBend || note.beat.hasWhammyBar || note.beat.vibrato !== VibratoType.None || !!note.playbackPitchCurves && [...note.playbackPitchCurves.values()].some(sequence => sequence.curves.length > 0);
     }
     private _determineChannel(track: Track, note: Note): number {
         // on certain effects we use the secondary channel to avoid interference with other notes
@@ -985,11 +985,15 @@ export class MidiFileGenerator {
         }
         const velocity: number = MidiFileGenerator._getNoteVelocity(note);
         const channel: number = this._determineChannel(track, note);
+        const pitchSequence = note.playbackPitchCurves?.get(Math.round(beatStart));
         let initialBend: number = 0;
 
         const noteSoundDuration: number = Math.max(noteDuration.untilTieOrSlideEnd, noteDuration.letRingEnd);
 
-        if (note.hasBend) {
+        if (pitchSequence !== undefined) {
+            const first = pitchSequence.curves.find(curve => curve.offset === 0);
+            initialBend = note.isTieDestination ? -1 : first ? MidiFileGenerator.getPitchWheel((first.kind === 'bend' ? first.note.bendPoints : first.note.beat.whammyBarPoints)![0].value) : MidiFileGenerator.getPitchWheel(0);
+        } else if (note.hasBend) {
             initialBend = MidiFileGenerator.getPitchWheel(note.bendPoints![0].value);
         } else if (note.beat.hasWhammyBar) {
             initialBend = MidiFileGenerator.getPitchWheel(note.beat.whammyBarPoints![0].value);
@@ -1038,7 +1042,21 @@ export class MidiFileGenerator {
 
         //
         // All String Bending/Variation effects
-        if (note.hasBend) {
+        if (pitchSequence !== undefined) {
+            const endTick = noteStart + pitchSequence.duration;
+            for (const curve of pitchSequence.curves) {
+                if (curve.offset >= pitchSequence.duration) continue;
+                const startTick = noteStart + curve.offset;
+                const points = (curve.kind === 'bend' ? curve.note.bendPoints : curve.note.beat.whammyBarPoints)!;
+                if (curve.offset !== 0) this._handler.addNoteBend(track.index, startTick, channel, noteKey, MidiFileGenerator.getPitchWheel(points[0].value));
+                const duration = new MidiNoteDuration();
+                duration.noteOnly = curve.duration;
+                duration.untilTieOrSlideEnd = curve.duration;
+                duration.letRingEnd = curve.duration;
+                if (curve.kind === 'bend') this._generateBend(curve.note, startTick, duration, noteKey, channel, curve.tempo, true, endTick);
+                else if (note.index === 0) this._generateWhammy(curve.note.beat, startTick, duration, channel, curve.tempo, endTick);
+            }
+        } else if (note.hasBend) {
             this._generateBend(note, noteStart, noteDuration, noteKey, channel, tempoOnBeatStart, projectedDuration !== undefined);
         } else if (note.beat.hasWhammyBar && note.index === 0) {
             this._generateWhammy(note.beat, noteStart, noteDuration, channel, tempoOnBeatStart);
@@ -1583,12 +1601,12 @@ export class MidiFileGenerator {
         });
     }
 
-    private _generateBend(note: Note, noteStart: number, noteDuration: MidiNoteDuration, noteKey: number, channel: number, tempoOnBeatStart: number, hasProjectedDuration: boolean): void {
+    private _generateBend(note: Note, noteStart: number, noteDuration: MidiNoteDuration, noteKey: number, channel: number, tempoOnBeatStart: number, hasProjectedDuration: boolean, endTick: number = Number.POSITIVE_INFINITY): void {
         const bendPoints: BendPoint[] = note.bendPoints!;
         const track: Track = note.beat.voice.bar.staff.track;
 
         const addBend: (tick: number, value: number) => void = (tick, value) => {
-            this._handler.addNoteBend(track.index, tick, channel, noteKey, value);
+            if (tick <= endTick) this._handler.addNoteBend(track.index, tick, channel, noteKey, value);
         };
 
         // if bend is extended on next tied note, we directly bend to the final bend value
@@ -1799,7 +1817,8 @@ export class MidiFileGenerator {
         noteStart: number,
         noteDuration: MidiNoteDuration,
         channel: number,
-        tempoOnBeatStart: number
+        tempoOnBeatStart: number,
+        endTick: number = Number.POSITIVE_INFINITY
     ): void {
         const bendPoints: BendPoint[] = beat.whammyBarPoints!;
         const track: Track = beat.voice.bar.staff.track;
@@ -1810,7 +1829,7 @@ export class MidiFileGenerator {
         }
 
         const addBend: (tick: number, value: number) => void = (tick, value) => {
-            this._handler.addBend(track.index, tick, channel, value);
+            if (tick <= endTick) this._handler.addBend(track.index, tick, channel, value);
         };
 
         let playedBendPoints: BendPoint[] = [];
@@ -1889,7 +1908,7 @@ export class MidiFileGenerator {
                         break;
                     case BendStyle.Fast:
                         const preDiveValue: number = MidiFileGenerator.getPitchWheel(bendPoints[0].value);
-                        this._handler.addBend(track.index, noteStart, channel, preDiveValue | 0);
+                        addBend(noteStart, preDiveValue | 0);
                         const whammyDuration: number = Math.min(
                             duration,
                             MidiUtils.millisToTicks(this._settings.player.songBookBendDuration, tempoOnBeatStart)

@@ -598,6 +598,13 @@ export class Note {
      */
     public playbackDurations?: Map<number, number>;
 
+    /** Application pitch sequences by unshifted attack tick. Not saved notation.
+     * @clone_ignore
+     * @json_ignore
+     */
+    public playbackPitchCurves?: Map<number, { duration: number; curves: { offset: number; duration: number; tempo: number; kind: 'bend' | 'whammy'; note: Note }[] }>;
+
+
     /**
      * @clone_ignore
      * @json_ignore
@@ -986,13 +993,23 @@ export class Note {
                 this.effectSlur = slur;
             }
         }
+        this.finishBend(!!this.bendPoints?.length && this.isTieDestination && this.tieOrigin!.hasBend);
+
+        // initial bend pitch offsets and forced accidentals don't play well together
+        // we reset it
+        if (this.initialBendValue > 0) {
+            this.accidentalMode = NoteAccidentalMode.Default;
+        }
+    }
+
+    /** Normalizes only the bend shape, without linking or changing score topology. */
+    public finishBend(isContinuedBend: boolean): void {
         // try to detect what kind of bend was used and cleans unneeded points if required
         // Guitar Pro 6 and above (gpif.xml) uses exactly 4 points to define all bends
         const points = this.bendPoints;
         const hasBend = points != null && points.length > 0;
 
         if (hasBend) {
-            const isContinuedBend: boolean = this.isTieDestination && this.tieOrigin!.hasBend;
             this.isContinuedBend = isContinuedBend;
         } else {
             this.bendType = BendType.None;
@@ -1110,11 +1127,6 @@ export class Note {
             }
         }
 
-        // initial bend pitch offsets and forced accidentals don't play well together
-        // we reset it
-        if (this.initialBendValue > 0) {
-            this.accidentalMode = NoteAccidentalMode.Default;
-        }
     }
 
     private static readonly _maxOffsetForSameLineSearch: number = 3;

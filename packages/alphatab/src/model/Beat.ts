@@ -942,6 +942,108 @@ export class Beat {
         this.automations = validBeatAutomations;
     }
 
+    /** Normalizes only the whammy shape, without linking or changing score topology. */
+    public finishWhammy(isContinuedWhammy: boolean, displayMode: NotationMode, isGradual: boolean): void {
+        // try to detect what kind of bend was used and cleans unneeded points if required
+        // Guitar Pro 6 and above (gpif.xml) uses exactly 4 points to define all whammys
+        const points = this.whammyBarPoints;
+        const hasWhammy = points !== null && points.length > 0;
+        if (hasWhammy) {
+            this.isContinuedWhammy = isContinuedWhammy;
+        } else {
+            this.whammyBarType = WhammyType.None;
+        }
+
+        if (hasWhammy && this.whammyBarType === WhammyType.Custom) {
+            if (displayMode === NotationMode.SongBook) {
+                this.whammyStyle = isGradual ? BendStyle.Gradual : BendStyle.Fast;
+            }
+            if (points!.length === 4) {
+                const origin: BendPoint = points[0];
+                const middle1: BendPoint = points[1];
+                const middle2: BendPoint = points[2];
+                const destination: BendPoint = points[3];
+                // the middle points are used for holds, anything else is a new feature we do not support yet
+                if (middle1.value === middle2.value) {
+                    // constant decrease or increase
+                    if (
+                        (origin.value < middle1.value && middle1.value < destination.value) ||
+                        (origin.value > middle1.value && middle1.value > destination.value)
+                    ) {
+                        if (origin.value !== 0 && !this.isContinuedWhammy) {
+                            this.whammyBarType = WhammyType.PrediveDive;
+                        } else {
+                            this.whammyBarType = WhammyType.Dive;
+                        }
+                        points.splice(2, 1);
+                        points.splice(1, 1);
+                    } else if (
+                        (origin.value > middle1.value && middle1.value < destination.value) ||
+                        (origin.value < middle1.value && middle1.value > destination.value)
+                    ) {
+                        this.whammyBarType = WhammyType.Dip;
+                        if (middle1.offset === middle2.offset || displayMode === NotationMode.SongBook) {
+                            points.splice(2, 1);
+                        }
+                    } else if (origin.value === middle1.value && middle1.value === destination.value) {
+                        if (origin.value !== 0 && !this.isContinuedWhammy) {
+                            this.whammyBarType = WhammyType.Predive;
+                        } else {
+                            this.whammyBarType = WhammyType.Hold;
+                        }
+                        points.splice(2, 1);
+                        points.splice(1, 1);
+                    }
+                }
+            } else if (points!.length === 3) {
+                const origin: BendPoint = points[0];
+                const middle: BendPoint = points[1];
+                const destination: BendPoint = points[2];
+                // constant decrease or increase
+                if (
+                    (origin.value < middle.value && middle.value < destination.value) ||
+                    (origin.value > middle.value && middle.value > destination.value)
+                ) {
+                    if (origin.value !== 0 && !this.isContinuedWhammy) {
+                        this.whammyBarType = WhammyType.PrediveDive;
+                    } else {
+                        this.whammyBarType = WhammyType.Dive;
+                    }
+                    points.splice(1, 1);
+                } else if (
+                    (origin.value > middle.value && middle.value < destination.value) ||
+                    (origin.value < middle.value && middle.value > destination.value)
+                ) {
+                    this.whammyBarType = WhammyType.Dip;
+                } else if (origin.value === middle.value && middle.value === destination.value) {
+                    if (origin.value !== 0 && !this.isContinuedWhammy) {
+                        this.whammyBarType = WhammyType.Predive;
+                    } else {
+                        this.whammyBarType = WhammyType.Hold;
+                    }
+                    points.splice(1, 1);
+                }
+            } else if (points!.length === 2) {
+                const origin: BendPoint = points[0];
+                const destination: BendPoint = points[1];
+
+                if (origin.value < destination.value || origin.value > destination.value) {
+                    if (origin.value !== 0 && !this.isContinuedWhammy) {
+                        this.whammyBarType = WhammyType.PrediveDive;
+                    } else {
+                        this.whammyBarType = WhammyType.Dive;
+                    }
+                } else if (origin.value === destination.value) {
+                    if (origin.value !== 0 && !this.isContinuedWhammy) {
+                        this.whammyBarType = WhammyType.Predive;
+                    } else {
+                        this.whammyBarType = WhammyType.Hold;
+                    }
+                }
+            }
+        }
+    }
+
     public finish(settings: Settings, sharedDataBag: Map<string, unknown> | null = null): void {
         if (
             this.getAutomation(AutomationType.Instrument) === null &&
@@ -1084,105 +1186,7 @@ export class Beat {
                 this.isPalmMute = true;
             }
         }
-        // try to detect what kind of bend was used and cleans unneeded points if required
-        // Guitar Pro 6 and above (gpif.xml) uses exactly 4 points to define all whammys
-        const points = this.whammyBarPoints;
-        const hasWhammy = points !== null && points.length > 0;
-        if (hasWhammy) {
-            const isContinuedWhammy: boolean = !!this.previousBeat && this.previousBeat.hasWhammyBar;
-            this.isContinuedWhammy = isContinuedWhammy;
-        } else {
-            this.whammyBarType = WhammyType.None;
-        }
-
-        if (hasWhammy && this.whammyBarType === WhammyType.Custom) {
-            if (displayMode === NotationMode.SongBook) {
-                this.whammyStyle = isGradual ? BendStyle.Gradual : BendStyle.Fast;
-            }
-            if (points!.length === 4) {
-                const origin: BendPoint = points[0];
-                const middle1: BendPoint = points[1];
-                const middle2: BendPoint = points[2];
-                const destination: BendPoint = points[3];
-                // the middle points are used for holds, anything else is a new feature we do not support yet
-                if (middle1.value === middle2.value) {
-                    // constant decrease or increase
-                    if (
-                        (origin.value < middle1.value && middle1.value < destination.value) ||
-                        (origin.value > middle1.value && middle1.value > destination.value)
-                    ) {
-                        if (origin.value !== 0 && !this.isContinuedWhammy) {
-                            this.whammyBarType = WhammyType.PrediveDive;
-                        } else {
-                            this.whammyBarType = WhammyType.Dive;
-                        }
-                        points.splice(2, 1);
-                        points.splice(1, 1);
-                    } else if (
-                        (origin.value > middle1.value && middle1.value < destination.value) ||
-                        (origin.value < middle1.value && middle1.value > destination.value)
-                    ) {
-                        this.whammyBarType = WhammyType.Dip;
-                        if (middle1.offset === middle2.offset || displayMode === NotationMode.SongBook) {
-                            points.splice(2, 1);
-                        }
-                    } else if (origin.value === middle1.value && middle1.value === destination.value) {
-                        if (origin.value !== 0 && !this.isContinuedWhammy) {
-                            this.whammyBarType = WhammyType.Predive;
-                        } else {
-                            this.whammyBarType = WhammyType.Hold;
-                        }
-                        points.splice(2, 1);
-                        points.splice(1, 1);
-                    }
-                }
-            } else if (points!.length === 3) {
-                const origin: BendPoint = points[0];
-                const middle: BendPoint = points[1];
-                const destination: BendPoint = points[2];
-                // constant decrease or increase
-                if (
-                    (origin.value < middle.value && middle.value < destination.value) ||
-                    (origin.value > middle.value && middle.value > destination.value)
-                ) {
-                    if (origin.value !== 0 && !this.isContinuedWhammy) {
-                        this.whammyBarType = WhammyType.PrediveDive;
-                    } else {
-                        this.whammyBarType = WhammyType.Dive;
-                    }
-                    points.splice(1, 1);
-                } else if (
-                    (origin.value > middle.value && middle.value < destination.value) ||
-                    (origin.value < middle.value && middle.value > destination.value)
-                ) {
-                    this.whammyBarType = WhammyType.Dip;
-                } else if (origin.value === middle.value && middle.value === destination.value) {
-                    if (origin.value !== 0 && !this.isContinuedWhammy) {
-                        this.whammyBarType = WhammyType.Predive;
-                    } else {
-                        this.whammyBarType = WhammyType.Hold;
-                    }
-                    points.splice(1, 1);
-                }
-            } else if (points!.length === 2) {
-                const origin: BendPoint = points[0];
-                const destination: BendPoint = points[1];
-
-                if (origin.value < destination.value || origin.value > destination.value) {
-                    if (origin.value !== 0 && !this.isContinuedWhammy) {
-                        this.whammyBarType = WhammyType.PrediveDive;
-                    } else {
-                        this.whammyBarType = WhammyType.Dive;
-                    }
-                } else if (origin.value === destination.value) {
-                    if (origin.value !== 0 && !this.isContinuedWhammy) {
-                        this.whammyBarType = WhammyType.Predive;
-                    } else {
-                        this.whammyBarType = WhammyType.Hold;
-                    }
-                }
-            }
-        }
+        this.finishWhammy(!!this.previousBeat && this.previousBeat.hasWhammyBar, displayMode, isGradual);
         this.updateDurations();
 
         if (needCopyBeatForBend) {
