@@ -1604,7 +1604,7 @@ export class MidiFileGenerator {
             ) {
                 endNote = endNote.tieDestination!;
             }
-            if (hasProjectedDuration && note.bendType === BendType.Custom && !endNote.isTieOrigin) {
+            if (hasProjectedDuration && !endNote.isTieOrigin) {
                 duration = noteDuration.noteOnly;
             } else {
                 duration = endNote.beat.absolutePlaybackStart - note.beat.absolutePlaybackStart + this._getNoteDuration(endNote, endNote.beat.playbackDuration, tempoOnBeatStart).noteOnly;
