@@ -1039,7 +1039,7 @@ export class MidiFileGenerator {
         //
         // All String Bending/Variation effects
         if (note.hasBend) {
-            this._generateBend(note, noteStart, noteDuration, noteKey, channel, tempoOnBeatStart);
+            this._generateBend(note, noteStart, noteDuration, noteKey, channel, tempoOnBeatStart, projectedDuration !== undefined);
         } else if (note.beat.hasWhammyBar && note.index === 0) {
             this._generateWhammy(note.beat, noteStart, noteDuration, channel, tempoOnBeatStart);
         } else if (note.slideInType !== SlideInType.None || note.slideOutType !== SlideOutType.None) {
@@ -1583,14 +1583,7 @@ export class MidiFileGenerator {
         });
     }
 
-    private _generateBend(
-        note: Note,
-        noteStart: number,
-        noteDuration: MidiNoteDuration,
-        noteKey: number,
-        channel: number,
-        tempoOnBeatStart: number
-    ): void {
+    private _generateBend(note: Note, noteStart: number, noteDuration: MidiNoteDuration, noteKey: number, channel: number, tempoOnBeatStart: number, hasProjectedDuration: boolean): void {
         const bendPoints: BendPoint[] = note.bendPoints!;
         const track: Track = note.beat.voice.bar.staff.track;
 
@@ -1611,10 +1604,11 @@ export class MidiFileGenerator {
             ) {
                 endNote = endNote.tieDestination!;
             }
-            duration =
-                endNote.beat.absolutePlaybackStart -
-                note.beat.absolutePlaybackStart +
-                this._getNoteDuration(endNote, endNote.beat.playbackDuration, tempoOnBeatStart).noteOnly;
+            if (hasProjectedDuration && note.bendType === BendType.Custom && !endNote.isTieOrigin) {
+                duration = noteDuration.noteOnly;
+            } else {
+                duration = endNote.beat.absolutePlaybackStart - note.beat.absolutePlaybackStart + this._getNoteDuration(endNote, endNote.beat.playbackDuration, tempoOnBeatStart).noteOnly;
+            }
         } else if (note.isTieOrigin && note.beat.graceType !== GraceType.None) {
             switch (note.tieDestination!.bendType) {
                 case BendType.Bend:
