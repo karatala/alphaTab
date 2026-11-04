@@ -19,11 +19,71 @@ import {
 } from '@coderline/alphatab/midi/MidiEvent';
 import { MidiFile, MidiTrack } from '@coderline/alphatab/midi/MidiFile';
 
+/** @internal */
+export interface MidiFileMessage {
+    division: number;
+    tickShift: number;
+    tracks: Float64Array[];
+}
+
 /**
  * MIDI-only object conversion for worker messages.
  * @internal
  */
 export class MidiFileJsonConverter {
+    private static readonly _messageFields: Map<MidiEventType, string[]> = new Map([
+        [MidiEventType.TimeSignature, ['numerator', 'denominatorIndex', 'midiClocksPerMetronomeClick', 'thirtySecondNodesInQuarter']],
+        [MidiEventType.AlphaTabRest, ['channel']],
+        [MidiEventType.AlphaTabMetronome, ['metronomeNumerator', 'metronomeDurationInTicks', 'metronomeDurationInMilliseconds']],
+        [MidiEventType.NoteOn, ['channel', 'noteKey', 'noteVelocity']],
+        [MidiEventType.NoteOff, ['channel', 'noteKey', 'noteVelocity']],
+        [MidiEventType.ControlChange, ['channel', 'controller', 'value']],
+        [MidiEventType.ProgramChange, ['channel', 'program']],
+        [MidiEventType.TempoChange, ['beatsPerMinute']],
+        [MidiEventType.PitchBend, ['channel', 'value']],
+        [MidiEventType.PerNotePitchBend, ['channel', 'noteKey', 'value']],
+        [MidiEventType.EndOfTrack, []]
+    ]);
+
+    /** Packs worker data into caller-independent transferable arrays. @internal */
+    public static midiFileToMessage(midi: MidiFile): MidiFileMessage {
+        const tracks = midi.tracks.map(track => {
+            const values = new Float64Array(track.events.length * 8);
+            for (let idx = 0; idx < track.events.length; idx++) {
+                const event = track.events[idx];
+                const fields = this._messageFields.get(event.type);
+                if (!fields) throw new AlphaTabError(AlphaTabErrorType.Format, `Unknown Midi Event type: ${event.type}`);
+                const offset = idx * 8;
+                values[offset] = event.type; values[offset + 1] = event.track; values[offset + 2] = event.tick;
+                for (let fieldIndex = 0; fieldIndex < fields.length; fieldIndex++) values[offset + 3 + fieldIndex] = (event as unknown as Record<string, number>)[fields[fieldIndex]];
+            }
+            return values;
+        });
+        return { division: midi.division, tickShift: midi.tickShift, tracks };
+    }
+
+    /** Restores the existing event classes and ordering on the receiving worker. @internal */
+    public static messageToMidiFile(message: MidiFileMessage): MidiFile {
+        const midi = new MidiFile();
+        midi.division = message.division; midi.tickShift = message.tickShift;
+        for (const values of message.tracks) {
+            const track = new MidiTrack();
+            for (let offset = 0; offset < values.length; offset += 8) {
+                const type = values[offset] as MidiEventType;
+                const fields = this._messageFields.get(type);
+                if (!fields) throw new AlphaTabError(AlphaTabErrorType.Format, `Unknown Midi Event type: ${type}`);
+                const event: Record<string, number> = { type, track: values[offset + 1], tick: values[offset + 2] };
+                for (let fieldIndex = 0; fieldIndex < fields.length; fieldIndex++) {
+                    const field = fields[fieldIndex];
+                    event[field === 'thirtySecondNodesInQuarter' ? 'thirdySecondNodesInQuarter' : field] = values[offset + 3 + fieldIndex];
+                }
+                track.events.push(this.jsObjectToMidiEvent(event));
+            }
+            midi.tracks.push(track);
+        }
+        return midi;
+    }
+
     /**
      * Converts the given JavaScript object into a MidiFile object.
      * @param jsObject The javascript object to deserialize.

@@ -140,6 +140,16 @@ export class MidiFileGenerator {
      * Starts the generation of the midi file.
      */
     public generate(): void {
+        const steps = this.generateSteps();
+        while (!steps.next().done) {}
+    }
+
+    /**
+     * Generates the same MIDI data in track and played-bar steps.
+     * The caller must not change the score or settings between steps.
+     * @internal
+     */
+    public *generateSteps(): IterableIterator<void> {
         this.transpositionPitches.clear();
         this._calculatedBeatTimers.clear();
         this._currentTime = 0;
@@ -147,12 +157,13 @@ export class MidiFileGenerator {
         // initialize tracks
         for (const track of this._score.tracks) {
             this._generateTrack(track);
+            yield;
         }
 
         Logger.debug('Midi', 'Begin midi generation');
 
         this.syncPoints = [];
-        MidiFileGenerator._playThroughSong(
+        yield* MidiFileGenerator._playThroughSongSteps(
             this._score,
             this.syncPoints,
             false,
@@ -277,7 +288,7 @@ export class MidiFileGenerator {
     public static generateSyncPoints(score: Score, createNew: boolean = false): BackingTrackSyncPoint[] {
         const syncPoints: BackingTrackSyncPoint[] = [];
 
-        MidiFileGenerator._playThroughSong(
+        const steps = MidiFileGenerator._playThroughSongSteps(
             score,
             syncPoints,
             createNew,
@@ -292,6 +303,8 @@ export class MidiFileGenerator {
             }
         );
 
+        while (!steps.next().done) {}
+
         return syncPoints;
     }
 
@@ -301,7 +314,7 @@ export class MidiFileGenerator {
     public static buildModifiedTempoLookup(score: Score): Map<Automation, BackingTrackSyncPoint> {
         const syncPoints: BackingTrackSyncPoint[] = [];
 
-        const context = MidiFileGenerator._playThroughSong(
+        const steps = MidiFileGenerator._playThroughSongSteps(
             score,
             syncPoints,
             false,
@@ -316,10 +329,12 @@ export class MidiFileGenerator {
             }
         );
 
-        return context.automationToSyncPoint;
+        let step = steps.next();
+        while (!step.done) step = steps.next();
+        return step.value.automationToSyncPoint;
     }
 
-    private static _playThroughSong(
+    private static *_playThroughSongSteps(
         score: Score,
         syncPoints: BackingTrackSyncPoint[],
         createNewSyncPoints: boolean,
@@ -332,7 +347,7 @@ export class MidiFileGenerator {
         ) => void,
         generateTracks: (barIndex: number, currentTick: number, currentTempo: number) => void,
         finish: (endTick: number) => void
-    ) {
+    ): Generator<void, PlayThroughContext> {
         const controller: MidiPlaybackController = new MidiPlaybackController(score);
 
         const playContext = new PlayThroughContext();
@@ -366,6 +381,7 @@ export class MidiFileGenerator {
 
             controller.moveNext();
             previousMasterBar = bar;
+            yield;
         }
 
         // here we interpolate the sync point which marks the end of the sync.

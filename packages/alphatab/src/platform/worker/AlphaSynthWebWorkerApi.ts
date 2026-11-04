@@ -10,6 +10,7 @@ import { Logger } from '@coderline/alphatab/Logger';
 import type { LogLevel } from '@coderline/alphatab/LogLevel';
 import type { MidiEventType } from '@coderline/alphatab/midi/MidiEvent';
 import type { MidiFile } from '@coderline/alphatab/midi/MidiFile';
+import { MidiFileJsonConverter } from '@coderline/alphatab/midi/MidiFileJsonConverter';
 import { JsonConverter } from '@coderline/alphatab/model/JsonConverter';
 import { ModelUtils } from '@coderline/alphatab/model/ModelUtils';
 import type { Score } from '@coderline/alphatab/model/Score';
@@ -356,10 +357,11 @@ export class AlphaSynthWebWorkerApi implements IAlphaSynth {
     }
 
     public loadMidiFile(midi: MidiFile): void {
+        const message = MidiFileJsonConverter.midiFileToMessage(midi);
         this._synth.postMessage({
             cmd: 'alphaSynth.loadMidi',
-            midi: JsonConverter.midiFileToJsObject(Environment.prepareForPostMessage(midi))
-        });
+            midi: message
+        }, message.tracks.map(track => track.buffer as ArrayBuffer));
     }
 
     public applyTranspositionPitches(transpositionPitches: Map<number, number>): void {

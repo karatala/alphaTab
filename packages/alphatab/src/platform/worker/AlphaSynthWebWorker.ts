@@ -1,5 +1,5 @@
 import { Logger } from '@coderline/alphatab/Logger';
-import { MidiFileJsonConverter } from '@coderline/alphatab/midi/MidiFileJsonConverter';
+import { MidiFileJsonConverter, type MidiFileMessage } from '@coderline/alphatab/midi/MidiFileJsonConverter';
 import { AlphaSynthWorkerSynthOutput } from '@coderline/alphatab/platform/worker/AlphaSynthWorkerSynthOutput';
 import type {
     IAlphaSynthWorkerMessage,
@@ -122,7 +122,7 @@ export class AlphaSynthWebWorker {
                 this._player.resetSoundFonts();
                 break;
             case 'alphaSynth.loadMidi':
-                this._player.loadMidiFile(MidiFileJsonConverter.jsObjectToMidiFile(data.midi));
+                this._player.loadMidiFile(MidiFileJsonConverter.messageToMidiFile(data.midi as MidiFileMessage));
                 break;
             case 'alphaSynth.setChannelMute':
                 this._player.setChannelMute(data.channel, data.mute);

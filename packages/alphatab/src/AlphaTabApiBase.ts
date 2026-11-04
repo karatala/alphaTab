@@ -168,6 +168,8 @@ export class AlphaTabApiBase<TSettings> {
     private _deferMidiUntilExplicitLoad: boolean = false;
     private _isScoreLoadedEventActive: boolean = false;
     private _midiLoadRequested: boolean = false;
+    private _midiGeneration: number = 0;
+    private _isPreparingMidi: boolean = false;
     private _scoreLoadRenderRequested: boolean = false;
     private _score: Score | null = null;
     private _tracks: Track[] = [];
@@ -1842,9 +1844,54 @@ export class AlphaTabApiBase<TSettings> {
      * @since 1.6.0
      */
     public loadMidiForScore(): void {
-        if (!this.score) {
-            return;
+        const prepared = this._prepareMidiForScore();
+        if (!prepared) return;
+        this._isPreparingMidi = false;
+        prepared.generator.generate();
+        this._loadGeneratedMidi(prepared.score, prepared.midiFile, prepared.handler, prepared.generator);
+    }
+
+    /**
+     * Whether a paced MIDI generation is still reading the score.
+     * @internal
+     */
+    public get isPreparingMidi(): boolean {
+        return this._isPreparingMidi;
+    }
+
+    /**
+     * Generates MIDI between caller-scheduled tasks and installs only a current result.
+     * The caller must invalidate isCurrent before changing the score or MIDI settings.
+     * @internal
+     */
+    public async loadMidiForScoreAsync(yieldControl: () => Promise<void> | void, isCurrent: () => boolean): Promise<boolean> {
+        if (this._isDestroyed || !isCurrent()) return false;
+        const prepared = this._prepareMidiForScore();
+        if (!prepared) return false;
+        const generation = this._midiGeneration;
+        const current = () => !this._isDestroyed && generation === this._midiGeneration && prepared.score === this.score && isCurrent();
+        this._isPreparingMidi = true;
+        try {
+            const steps = prepared.generator.generateSteps();
+            while (!steps.next().done) {
+                const waiting = yieldControl();
+                if (waiting) await waiting;
+                if (!current()) return false;
+            }
+            if (!current()) return false;
+            this._isPreparingMidi = false;
+            this._loadGeneratedMidi(prepared.score, prepared.midiFile, prepared.handler, prepared.generator);
+            return true;
+        } finally {
+            if (generation === this._midiGeneration) this._isPreparingMidi = false;
         }
+    }
+
+    private _prepareMidiForScore() {
+        if (!this.score) {
+            return null;
+        }
+        this._midiGeneration++;
         this._deferMidiUntilExplicitLoad = false;
         this._midiLoadRequested = true;
 
@@ -1862,7 +1909,10 @@ export class AlphaTabApiBase<TSettings> {
         // we pass the transposition pitches separately to alphaSynth.
         generator.applyTranspositionPitches = false;
 
-        generator.generate();
+        return { score, midiFile, handler, generator };
+    }
+
+    private _loadGeneratedMidi(score: Score, midiFile: MidiFile, handler: AlphaSynthMidiFileHandler, generator: MidiFileGenerator): void {
         this._tickCache = generator.tickLookup;
         this._tickCache.playbackRange = this.playbackRange;
 
