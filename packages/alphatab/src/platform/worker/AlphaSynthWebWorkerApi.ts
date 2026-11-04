@@ -1,3 +1,4 @@
+import { AlphaSynthAudioWorkletOutput } from '@coderline/alphatab/platform/javascript/AlphaSynthAudioWorkletOutput';
 import { Environment } from '@coderline/alphatab/Environment';
 import {
     EventEmitter,
@@ -279,6 +280,7 @@ export class AlphaSynthWebWorkerApi implements IAlphaSynth {
         this._output.sampleRequest.on(this.onOutputSampleRequest.bind(this));
         this._output.open(settings.player.bufferTimeInMilliseconds);
         this._synth = synthWorker;
+        if (this._output instanceof AlphaSynthAudioWorkletOutput) this._output.connectWorker(this._synth);
         this._synth.addEventListener('message', e => this.handleWorkerMessage(e));
         this._synth.postMessage({
             cmd: 'alphaSynth.initialize',
@@ -471,7 +473,8 @@ export class AlphaSynthWebWorkerApi implements IAlphaSynth {
                 this._output.addSamples(data.samples);
                 break;
             case 'alphaSynth.output.play':
-                this._output.play();
+                if (this._output instanceof AlphaSynthAudioWorkletOutput) this._output.play(data.streamId);
+                else this._output.play();
                 break;
             case 'alphaSynth.output.pause':
                 this._output.pause();

@@ -4,6 +4,7 @@ import type { Settings } from '@coderline/alphatab/Settings';
 import { AlphaSynthWebAudioOutputBase } from '@coderline/alphatab/platform/javascript/AlphaSynthWebAudioOutputBase';
 import { BrowserUiFacade } from '@coderline/alphatab/platform/javascript/BrowserUiFacade';
 import type {
+    IAlphaSynthWorker,
     IAlphaSynthWorkerMessage,
     IAlphaTabWorker
 } from '@coderline/alphatab/platform/worker/AlphaTabWorkerProtocol';
@@ -79,6 +80,7 @@ export class AlphaSynthWebWorklet {
                 private _bufferCount: number = 0;
                 private _requestedBufferCount: number = 0;
                 private _isStopped = false;
+                private _streamPort: MessagePort | null = null;
 
                 constructor(options: AudioWorkletNodeOptions) {
                     super(options);
@@ -102,6 +104,12 @@ export class AlphaSynthWebWorklet {
                     const data = e.data;
                     const cmd = data.cmd;
                     switch (cmd) {
+                        case 'alphaSynth.output.connect':
+                            this._streamPort?.close();
+                            this._streamPort = data.port;
+                            this._streamPort.onmessage = event => this._handleMessage(event);
+                            this._streamPort.start();
+                            break;
                         case 'alphaSynth.output.addSamples':
                             const f: Float32Array = data.samples;
                             this._circularBuffer.write(f, 0, f.length);
@@ -112,6 +120,8 @@ export class AlphaSynthWebWorklet {
                             break;
                         case 'alphaSynth.output.stop':
                             this._isStopped = true;
+                            this._streamPort?.close();
+                            this._streamPort = null;
                             break;
                     }
                 }
@@ -157,7 +167,7 @@ export class AlphaSynthWebWorklet {
                         }
                     }
 
-                    this.port.postMessage({
+                    (this._streamPort ?? this.port).postMessage({
                         cmd: 'alphaSynth.output.samplesPlayed',
                         samples: samplesFromBuffer / SynthConstants.AudioChannels
                     });
@@ -179,7 +189,7 @@ export class AlphaSynthWebWorklet {
                         this._requestedBufferCount * AlphaSynthWebWorkletProcessor.BufferSize;
                     if (bufferedSamples < halfSamples) {
                         for (let i: number = 0; i < halfBufferCount; i++) {
-                            this.port.postMessage({
+                            (this._streamPort ?? this.port).postMessage({
                                 cmd: 'alphaSynth.output.sampleRequest'
                             });
                         }
@@ -200,6 +210,7 @@ export class AlphaSynthWebWorklet {
 export class AlphaSynthAudioWorkletOutput extends AlphaSynthWebAudioOutputBase {
     private _worklet: AudioWorkletNode<IAlphaSynthWorkerMessage> | null = null;
     private _bufferTimeInMilliseconds: number = 0;
+    private _synthWorker: IAlphaSynthWorker | null = null;
     private readonly _settings: Settings;
     private _boundHandleMessage: (e: MessageEvent<IAlphaSynthWorkerMessage>) => void;
 
@@ -207,6 +218,10 @@ export class AlphaSynthAudioWorkletOutput extends AlphaSynthWebAudioOutputBase {
         super();
         this._settings = settings;
         this._boundHandleMessage = e => this._handleMessage(e);
+    }
+
+    public connectWorker(worker: IAlphaSynthWorker): void {
+        this._synthWorker = worker;
     }
 
     public override open(bufferTimeInMilliseconds: number) {
@@ -225,7 +240,7 @@ export class AlphaSynthAudioWorkletOutput extends AlphaSynthWebAudioOutputBase {
         );
     }
 
-    public override play(): void {
+    public override play(streamId = 0): void {
         super.play();
         const ctx = this.context!;
 
@@ -236,6 +251,12 @@ export class AlphaSynthAudioWorkletOutput extends AlphaSynthWebAudioOutputBase {
                 bufferTimeInMilliseconds: this._bufferTimeInMilliseconds
             }
         }) as AudioWorkletNode<IAlphaSynthWorkerMessage>;
+
+        if (this._synthWorker) {
+            const channel = new MessageChannel();
+            this._worklet.port.postMessage({ cmd: 'alphaSynth.output.connect', port: channel.port1, streamId }, [channel.port1]);
+            this._synthWorker.postMessage({ cmd: 'alphaSynth.output.connect', port: channel.port2, streamId }, [channel.port2]);
+        }
 
         this._worklet.port.addEventListener('message', this._boundHandleMessage);
         this._worklet.port.start();

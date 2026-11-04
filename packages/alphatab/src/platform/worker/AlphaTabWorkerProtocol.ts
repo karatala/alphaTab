@@ -169,12 +169,13 @@ export type IAlphaSynthWorkerMessage =
     | { cmd: 'alphaSynth.exporter.rendered'; exporterId: number; chunk: AudioExportChunk | undefined }
     | { cmd: 'alphaSynth.exporter.error'; exporterId: number; error: Error }
     /* output -> worker */
+    | { cmd: 'alphaSynth.output.connect'; port: MessagePort; streamId: number }
     | { cmd: 'alphaSynth.output.sampleRequest' }
     | { cmd: 'alphaSynth.output.samplesPlayed'; samples: number }
 
     /* worker -> output */
     | { cmd: 'alphaSynth.output.addSamples'; samples: Float32Array }
-    | { cmd: 'alphaSynth.output.play' }
+    | { cmd: 'alphaSynth.output.play'; streamId: number }
     | { cmd: 'alphaSynth.output.pause' }
     | { cmd: 'alphaSynth.output.stop' }
     | { cmd: 'alphaSynth.output.destroy' }
