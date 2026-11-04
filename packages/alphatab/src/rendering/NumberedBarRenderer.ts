@@ -102,8 +102,9 @@ export class NumberedBarRenderer extends LineBarRenderer {
         return BeatSubElement.NumberedTuplet;
     }
 
-    protected override shouldPaintBeamingHelper(_h: BeamingHelper): boolean {
-        return true;
+    protected override shouldPaintBeamingHelper(helper: BeamingHelper): boolean {
+        // Long rests have no duration bars and no notes for beam bounds.
+        return !helper.isRestBeamHelper || helper.beats[0].duration >= Duration.Eighth;
     }
 
     protected override paintFlag(
