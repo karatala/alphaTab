@@ -1,5 +1,9 @@
 # Instructions for AI Agents Contributing to alphaTab
 
+- Local horizontal renderer reuse expands through linked master-bar renderer groups in both directions before caching. A changed middle bar can split or join a grouped effect band; complete SVG and bounds must match full layout through history. This expansion does not request another model owner or full score transmission.
+
+- Local horizontal layout contract: bounded updates compare prior and new system/staff geometry. If offsets, padding, overflow or height change, retain bar renderer layout but rebuild nested bounds for all bars and disable delta transfer for that result. Unchanged staff geometry keeps cached nested bounds and the compact delta path. Compare complete SVG and bounds through Execute/Undo/Redo and non-unit scale.
+
 This document is addressed to AI coding assistants and autonomous agents — GitHub
 Copilot, Cursor, Claude Code, Codex, ChatGPT and its browsing/agent modes, and any
 similar tool. It is the source of truth for agent behavior in this repository. Other

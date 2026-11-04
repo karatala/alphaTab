@@ -26,6 +26,11 @@ export class HorizontalScreenLayout extends ScoreLayout {
     private _system: StaffSystem | null = null;
     private _systems: StaffSystem[] = [];
     private _cachedMasterBarRenderers: Map<number, MasterBarsRenderers> | null = null;
+    private _cachedStaffGeometry: number[] | null = null;
+
+    private _getStaffGeometry(system: StaffSystem): number[] {
+        return [system.y, system.topPadding, system.bottomPadding, ...system.allStaves.flatMap(staff => [staff.x, staff.y, staff.height, staff.topPadding, staff.bottomPadding, staff.topOverflow, staff.bottomOverflow])];
+    }
 
     public override get systems(): StaffSystem[] {
         return this._systems;
@@ -65,12 +70,25 @@ export class HorizontalScreenLayout extends ScoreLayout {
             return false;
         }
 
+        const previousRenderers = this._system.masterBarsRenderers;
+        let firstRendererIndex = previousRenderers.findIndex(renderers => renderers.lastMasterBarIndex >= firstChangedMasterBar);
+        let lastRendererIndex = previousRenderers.findLastIndex(renderers => renderers.masterBar.index <= lastChangedMasterBar);
+        if (firstRendererIndex < 0 || lastRendererIndex < firstRendererIndex) {
+            return false;
+        }
+        while (firstRendererIndex > 0 && previousRenderers[firstRendererIndex].isLinkedToPrevious) {
+            firstRendererIndex--;
+        }
+        while (lastRendererIndex + 1 < previousRenderers.length && previousRenderers[lastRendererIndex + 1].isLinkedToPrevious) {
+            lastRendererIndex++;
+        }
         renderHints.useBoundsDelta = true;
+        this._cachedStaffGeometry = this._getStaffGeometry(this._system);
         this._cachedMasterBarRenderers = new Map<number, MasterBarsRenderers>();
-        let expandedFirstChangedMasterBar = firstChangedMasterBar;
-        let expandedLastChangedMasterBar = lastChangedMasterBar;
-        for (const renderers of this._system.masterBarsRenderers) {
-            if (renderers.lastMasterBarIndex < firstChangedMasterBar || renderers.masterBar.index > lastChangedMasterBar) {
+        let expandedFirstChangedMasterBar = previousRenderers[firstRendererIndex].masterBar.index;
+        let expandedLastChangedMasterBar = previousRenderers[lastRendererIndex].lastMasterBarIndex;
+        for (const renderers of previousRenderers) {
+            if (renderers.lastMasterBarIndex < expandedFirstChangedMasterBar || renderers.masterBar.index > expandedLastChangedMasterBar) {
                 this._cachedMasterBarRenderers.set(renderers.masterBar.index, renderers);
                 continue;
             }
@@ -96,6 +114,7 @@ export class HorizontalScreenLayout extends ScoreLayout {
             this.doLayoutAndRender(renderHints);
         } finally {
             this._cachedMasterBarRenderers = null;
+            this._cachedStaffGeometry = null;
         }
         return true;
     }
@@ -181,6 +200,15 @@ export class HorizontalScreenLayout extends ScoreLayout {
         const alignmentCompletedAt = renderHints?.measurePerformance ? performance.now() : 0;
         this._system.finalizeSystem();
         const finalizationCompletedAt = renderHints?.measurePerformance ? performance.now() : 0;
+
+        if (this._cachedStaffGeometry) {
+            const currentGeometry = this._getStaffGeometry(this._system);
+            if (currentGeometry.length !== this._cachedStaffGeometry.length || currentGeometry.some((value, idx) => value !== this._cachedStaffGeometry![idx])) {
+                // Cached bars still share the new layout, but their nested bounds need its staff positions.
+                renderHints!.useBoundsDelta = false;
+                this._cachedMasterBarRenderers = null;
+            }
+        }
 
         this.height = Math.floor(this._system.y + this._system.height);
         this.width = this._system.x + this._system.width + this.pagePadding![2];
