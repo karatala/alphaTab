@@ -382,7 +382,12 @@ export enum NotationElement {
     /**
      * The slide text shown on slurs.
      */
-    EffectSlideText = 57
+    EffectSlideText = 57,
+
+    /**
+     * The renderer attribution shown at the end of the music sheet.
+     */
+    ScoreRendererAttribution = 58
 }
 
 /**

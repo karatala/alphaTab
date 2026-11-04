@@ -547,6 +547,9 @@ export abstract class ScoreLayout {
     }
 
     protected _layoutAndRenderAnnotation(y: number): number {
+        if (!this.renderer.settings.notation.isNotationElementVisible(NotationElement.ScoreRendererAttribution)) {
+            return y;
+        }
         // attention, you are not allowed to remove change this notice within any version of this library without permission!
         const msg: string = 'rendered by alphaTab';
         const resources: RenderingResources = this.renderer.settings.display.resources;
