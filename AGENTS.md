@@ -243,3 +243,5 @@ instead of on paperwork, which is better for everyone.
 - NumberedBarRenderer requests beaming only for rest durations with duration bars (eighth and shorter). Whole, half and quarter rests have no bars and no highest/lowest note for note-based beam bounds. Keep the existing rest-tuplet bracket layout and short-rest duration bars.
 
 - NotationElement.ScoreRendererAttribution controls the final rendered-by annotation through the existing serialized notation.elements map. It is visible by default. When disabled, ScoreLayout returns the current height without a glyph or reserved footer space, consistently for horizontal, vertical and partial layouts. Keep the attribution text and license notices in source. The application sets editor visibility separately from document copyright metadata and future print settings.
+
+- Standard notation owns separate top and bottom OttaviaEffectInfo bands. Render 8va/15ma above and 8vb/15mb below the staff, including grouped spans. This changes only layout; note pitch, MIDI and model values stay unchanged.
