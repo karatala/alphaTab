@@ -395,12 +395,12 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
                 // also force adding in case the system is empty
                 let renderers: MasterBarsRenderers | null = this._allMasterBarRenderers[currentIndex];
 
-                if (system.width + renderers!.width <= maxWidth || system.masterBarsRenderers.length === 0) {
+                if (system.width + renderers!.width <= maxWidth || system.masterBarsRenderers.length === 0 || !renderers.canWrap && !system.masterBarsRenderers.slice(1).some(previous => previous.canWrap)) {
                     system.addMasterBarRenderers(this.renderer.tracks!, renderers!);
                     // move to next bar
                     currentIndex++;
 
-                    if (this._needsLineBreak(currentIndex)) {
+                    if (this._needsLineBreak(currentIndex - 1)) {
                         system.isFull = true;
                     }
                 } else {
@@ -602,9 +602,10 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
             // can bar placed in this line?
             if (barsPerRow === -1 && system.width >= maxWidth && system.masterBarsRenderers.length !== 0) {
                 systemIsFull = true;
-            } else if (system.masterBarsRenderers.length === barsPerRow + 1) {
+            } else if (barsPerRow > 0 && system.masterBarsRenderers.length > barsPerRow) {
                 systemIsFull = true;
             }
+            if (systemIsFull && !system.masterBarsRenderers.slice(1).some(renderers => renderers.canWrap)) systemIsFull = false;
             if (systemIsFull) {
                 let reverted = system.revertLastBar();
                 if (reverted) {
@@ -637,6 +638,7 @@ export abstract class VerticalLayoutBase extends ScoreLayout {
         let anyTrackNeedsLineBreak = false;
         let allTracksNeedLineBreak = true;
         for (const track of this.renderer.tracks!) {
+            if (track.preventLineBreaks?.has(barIndex)) return false;
             if (track.lineBreaks && track.lineBreaks!.has(barIndex + 1)) {
                 anyTrackNeedsLineBreak = true;
             } else {

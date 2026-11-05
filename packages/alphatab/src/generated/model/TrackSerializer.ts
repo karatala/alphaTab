@@ -43,6 +43,7 @@ export class TrackSerializer {
                 a.push(v);
             }
         }
+        if (obj.preventLineBreaks !== undefined) o.set("preventlinebreaks", [...obj.preventLineBreaks]);
         o.set("percussionarticulations", obj.percussionArticulations.map(i => InstrumentArticulationSerializer.toJson(i)));
         if (obj.style) {
             o.set("style", TrackStyleSerializer.toJson(obj.style));
@@ -84,6 +85,9 @@ export class TrackSerializer {
                 for (const i of (v as number[])) {
                     obj.addLineBreaks(i);
                 }
+                return true;
+            case "preventlinebreaks":
+                for (const index of (v as number[])) obj.addPreventLineBreaks(index);
                 return true;
             case "percussionarticulations":
                 obj.percussionArticulations = [];

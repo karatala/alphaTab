@@ -413,7 +413,7 @@ export class StaffSystem {
                 if (renderer.isLinkedToPrevious) {
                     result.isLinkedToPrevious = true;
                 }
-                if (bar.simileMark === SimileMark.SecondOfDouble) {
+                if (bar.simileMark === SimileMark.SecondOfDouble || barIndex > 0 && g.track.preventLineBreaks?.has(barIndex - 1)) {
                     result.canWrap = false;
                 }
             }

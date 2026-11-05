@@ -115,6 +115,17 @@ export class Track {
      * @json_add addLineBreaks
      */
     public lineBreaks?: Set<number>;
+
+    /**
+     * Bars after which a system break is forbidden.
+     * @json_add addPreventLineBreaks
+     */
+    public preventLineBreaks?: Set<number>;
+
+    public addPreventLineBreaks(index: number) {
+        if (!this.preventLineBreaks) this.preventLineBreaks = new Set<number>();
+        this.preventLineBreaks.add(index);
+    }
     
     /**
      * Gets whether this track is a percussion track.
