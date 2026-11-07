@@ -130,10 +130,12 @@ export class NoteNumberGlyph extends Glyph {
         const x: number = cx + this.x + (this.width - textWidth) / 2;
         const y = cy + this.y;
 
+        canvas.beginGroup('at-playback-glyph');
         this.paintTrill(x, y, canvas);
 
         using _ = ElementStyleHelper.note(canvas, NoteSubElement.GuitarTabFretNumber, this._note);
         canvas.fillText(this._noteString!, x, y);
+        canvas.endGroup();
 
         // canvas.color = Color.random();
         // canvas.fillRect(cx + this.x, cy + this.y - this.height / 2, this.width, this.height);

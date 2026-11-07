@@ -56,7 +56,13 @@ export class NumberedNoteHeadGlyph extends Glyph {
         const baseline = canvas.textBaseline;
         canvas.textBaseline = TextBaseline.Middle;
         canvas.textAlign = TextAlign.Left;
-        canvas.fillText(this._number.toString(), cx + this.x, cy + this.y);
+        if (this._beat.isRest) {
+            canvas.fillText(this._number.toString(), cx + this.x, cy + this.y);
+        } else {
+            canvas.beginGroup('at-playback-glyph');
+            canvas.fillText(this._number.toString(), cx + this.x, cy + this.y);
+            canvas.endGroup();
+        }
         canvas.textBaseline = baseline;
 
         const dotCount = Math.abs(this._octaveDots);

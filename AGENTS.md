@@ -218,6 +218,8 @@ instead of on paperwork, which is better for everyone.
 
 ## Local application behavior
 
+- Wrap note heads, tablature fret numbers, and numbered notation note digits in `at-playback-glyph` SVG groups. Keep stems, beams, ledger lines, and effects outside these groups. Use the existing beat highlight classes for playback. Keep this markup separate from layout bounds and timing.
+
 - AlphaSynthWebWorkerApi connects AlphaSynthAudioWorkletOutput directly to its synth Worker with one MessageChannel per playback source. Sample requests, played-sample counts, PCM blocks and buffer resets use that channel; the main thread keeps setup and playback controls. AlphaSynthWorkerSynthOutput rejects stale stream IDs and closes its port on pause or disposal. The worklet closes its port on stop or replacement. Other outputs retain their existing message path and sequencer timing.
 
 - Voice._chain clears nextBeat when the following bar has no beat in that voice. Do not dereference null or retain a removed beat. A populated adjacent voice keeps the normal reciprocal beat link; do not insert model rests to repair an empty voice.

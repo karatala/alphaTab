@@ -17,7 +17,9 @@ export class NoteHeadGlyphBase extends MusicFontGlyph {
         if (this.centerOnStem) {
             this.center = true;
         }
+        canvas.beginGroup('at-playback-glyph');
         super.paint(cx, cy, canvas);
+        canvas.endGroup();
     }
 }
 
