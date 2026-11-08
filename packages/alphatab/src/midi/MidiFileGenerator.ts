@@ -1024,7 +1024,7 @@ export class MidiFileGenerator {
             initialBend = MidiFileGenerator.getPitchWheel(0);
         }
 
-        if (initialBend >= 0) {
+        if (initialBend >= 0 && (bendWindow?.endTick === undefined || noteStart <= bendWindow.endTick)) {
             this._handler.addNoteBend(track.index, noteStart, channel, noteKey, initialBend);
         }
 
@@ -1623,11 +1623,11 @@ export class MidiFileGenerator {
         });
     }
 
-    private _generateBendWindow(note: Note, noteStart: number, length: number, noteKey: number, channel: number, tempo: number, window: { advance: number; duration?: number }, nativeNoteLength: number): void {
+    private _generateBendWindow(note: Note, noteStart: number, length: number, noteKey: number, channel: number, tempo: number, window: { advance: number; duration?: number; endTick?: number }, nativeNoteLength: number): void {
         const originalDuration = new MidiNoteDuration();
         originalDuration.noteOnly = window.duration ?? nativeNoteLength;
         const hasProjectedDuration = window.duration !== undefined;
-        const end = noteStart + length;
+        const end = window.endTick ?? noteStart + length;
         if (window.advance === 0) {
             this._generateBend(note, noteStart, originalDuration, noteKey, channel, tempo, hasProjectedDuration, end);
             return;

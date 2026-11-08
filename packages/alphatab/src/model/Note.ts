@@ -610,11 +610,11 @@ export class Note {
      */
     public playbackPickingOffsets?: Map<number, number>;
 
-    /** Window of a native bend, keyed by the unshifted beat tick. Omit duration to keep native tie timing.
+    /** Window of a native bend, keyed by the unshifted beat tick. Omit duration to keep native tie timing. endTick can supply the shared release for a continuation.
      * @clone_ignore
      * @json_ignore
      */
-    public playbackBendWindows?: Map<number, { advance: number; duration?: number }>;
+    public playbackBendWindows?: Map<number, { advance: number; duration?: number; endTick?: number }>;
 
     /** Application pitch sequences by unshifted attack tick. Not saved notation.
      * @clone_ignore
