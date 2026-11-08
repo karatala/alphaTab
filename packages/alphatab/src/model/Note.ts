@@ -604,6 +604,12 @@ export class Note {
      */
     public playbackDurations?: Map<number, number>;
 
+    /** Elapsed picking time at a clipped attack, keyed by unshifted playback tick.
+     * @clone_ignore
+     * @json_ignore
+     */
+    public playbackPickingOffsets?: Map<number, number>;
+
     /** Application pitch sequences by unshifted attack tick. Not saved notation.
      * @clone_ignore
      * @json_ignore

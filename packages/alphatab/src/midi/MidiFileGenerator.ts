@@ -1043,7 +1043,7 @@ export class MidiFileGenerator {
         //
         // Trill
         if (note.isTrill && !staff.isPercussion) {
-            this._generateTrill(note, noteStart, noteDuration, noteKey, velocity, channel);
+            this._generateTrill(note, noteStart, noteDuration, noteKey, velocity, channel, note.playbackPickingOffsets?.get(Math.round(beatStart)) ?? 0);
             // no further generation needed
             return;
         }
@@ -1051,7 +1051,7 @@ export class MidiFileGenerator {
         //
         // Tremolo Picking
         if (note.beat.isTremolo) {
-            this._generateTremoloPicking(note, noteStart, noteDuration, noteKey, velocity, channel);
+            this._generateTremoloPicking(note, noteStart, noteDuration, noteKey, velocity, channel, note.playbackPickingOffsets?.get(Math.round(beatStart)) ?? 0);
             // no further generation needed
             return;
         }
@@ -2032,7 +2032,8 @@ export class MidiFileGenerator {
         noteDuration: MidiNoteDuration,
         noteKey: number,
         dynamicValue: number,
-        channel: number
+        channel: number,
+        advance: number
     ): void {
         const track: Track = note.beat.voice.bar.staff.track;
         const trillKey: number = note.stringTuning + note.trillFret;
@@ -2040,15 +2041,17 @@ export class MidiFileGenerator {
         // beat effects
         let trillLength: number = MidiUtils.toTicks(note.trillSpeed);
 
-        let realKey: boolean = true;
-        let tick: number = noteStart;
+        let realKey: boolean = Math.floor(advance / trillLength) % 2 === 0;
+        // Keep the original subdivision start for the minimum-length check.
+        let tick: number = noteStart - (advance % trillLength);
         const end: number = noteStart + noteDuration.untilTieOrSlideEnd;
         while (tick + 10 < end) {
             // only the rest on last trill play
             if (tick + trillLength >= end) {
                 trillLength = end - tick;
             }
-            this._handler.addNote(track.index, tick, trillLength, realKey ? noteKey : trillKey, dynamicValue, channel);
+            const lead = Math.max(0, noteStart - tick);
+            this._handler.addNote(track.index, tick + lead, trillLength - lead, realKey ? noteKey : trillKey, dynamicValue, channel);
             realKey = !realKey;
             tick += trillLength;
         }
@@ -2060,7 +2063,8 @@ export class MidiFileGenerator {
         noteDuration: MidiNoteDuration,
         noteKey: number,
         dynamicValue: number,
-        channel: number
+        channel: number,
+        advance: number
     ): void {
         const track: Track = note.beat.voice.bar.staff.track;
         const marks = note.beat.tremoloPicking!.marks;
@@ -2072,7 +2076,7 @@ export class MidiFileGenerator {
         let tpLength =
             note.beat.tremoloPicking!.getDurationAsTicks(note.beat.duration) * noteDuration.beatDurationFactor;
 
-        let tick: number = noteStart;
+        let tick: number = noteStart - (advance % tpLength);
         const end: number = noteStart + noteDuration.untilTieOrSlideEnd;
 
         while (tick + 10 < end) {
@@ -2080,7 +2084,8 @@ export class MidiFileGenerator {
             if (tick + tpLength >= end) {
                 tpLength = end - tick;
             }
-            this._handler.addNote(track.index, tick, tpLength, noteKey, dynamicValue, channel);
+            const lead = Math.max(0, noteStart - tick);
+            this._handler.addNote(track.index, tick + lead, tpLength - lead, noteKey, dynamicValue, channel);
             tick += tpLength;
         }
     }
