@@ -993,6 +993,7 @@ export class MidiFileGenerator {
         noteDuration.untilTieOrSlideEnd -= brushOffset;
         noteDuration.noteOnly -= brushOffset;
         noteDuration.letRingEnd -= brushOffset;
+        const nativeNoteLength = noteDuration.noteOnly;
         const projectedDuration = note.playbackDurations?.get(Math.round(beatStart));
         if (projectedDuration !== undefined) {
             noteDuration.untilTieOrSlideEnd = projectedDuration;
@@ -1075,7 +1076,7 @@ export class MidiFileGenerator {
             }
         } else if (note.hasBend) {
             if (bendWindow) {
-                this._generateBendWindow(note, noteStart, noteDuration.noteOnly, noteKey, channel, tempoOnBeatStart, bendWindow);
+                this._generateBendWindow(note, noteStart, noteDuration.noteOnly, noteKey, channel, tempoOnBeatStart, bendWindow, nativeNoteLength);
             } else {
                 this._generateBend(note, noteStart, noteDuration, noteKey, channel, tempoOnBeatStart, projectedDuration !== undefined);
             }
@@ -1622,12 +1623,12 @@ export class MidiFileGenerator {
         });
     }
 
-    private _generateBendWindow(note: Note, noteStart: number, length: number, noteKey: number, channel: number, tempo: number, window: { advance: number; duration: number }): void {
+    private _generateBendWindow(note: Note, noteStart: number, length: number, noteKey: number, channel: number, tempo: number, window: { advance: number; duration?: number }, nativeNoteLength: number): void {
         const originalDuration = new MidiNoteDuration();
-        originalDuration.noteOnly = window.duration;
+        originalDuration.noteOnly = window.duration ?? nativeNoteLength;
         const end = noteStart + length;
         if (window.advance === 0) {
-            this._generateBend(note, noteStart, originalDuration, noteKey, channel, tempo, true, end);
+            this._generateBend(note, noteStart, originalDuration, noteKey, channel, tempo, window.duration !== undefined, end);
             return;
         }
         let initialValue = MidiFileGenerator.getPitchWheel(note.bendPoints![0].value);

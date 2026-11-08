@@ -610,11 +610,11 @@ export class Note {
      */
     public playbackPickingOffsets?: Map<number, number>;
 
-    /** Window of a native timed bend, keyed by the unshifted beat tick.
+    /** Window of a native bend, keyed by the unshifted beat tick. Omit duration for a right cut with native tie timing.
      * @clone_ignore
      * @json_ignore
      */
-    public playbackBendWindows?: Map<number, { advance: number; duration: number }>;
+    public playbackBendWindows?: Map<number, { advance: number; duration?: number }>;
 
     /** Application pitch sequences by unshifted attack tick. Not saved notation.
      * @clone_ignore
