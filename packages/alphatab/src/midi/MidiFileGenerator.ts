@@ -2148,22 +2148,8 @@ export class MidiFileGenerator {
         const trillKey: number = note.stringTuning + note.trillFret;
         // NOTE: no noteDuration.beatDurationFactor, the trill speed is absolute and not dependent on the
         // beat effects
-        let trillLength: number = MidiUtils.toTicks(note.trillSpeed);
-
-        let realKey: boolean = Math.floor(advance / trillLength) % 2 === 0;
-        // Keep the original subdivision start for the minimum-length check.
-        let tick: number = noteStart - (advance % trillLength);
-        const end: number = noteStart + noteDuration.untilTieOrSlideEnd;
-        while (tick + 10 < end) {
-            // only the rest on last trill play
-            if (tick + trillLength >= end) {
-                trillLength = end - tick;
-            }
-            const lead = Math.max(0, noteStart - tick);
-            this._handler.addNote(track.index, tick + lead, trillLength - lead, realKey ? noteKey : trillKey, dynamicValue, channel);
-            realKey = !realKey;
-            tick += trillLength;
-        }
+        const step = MidiUtils.toTicks(note.trillSpeed);
+        this._generatePickingAttacks(track.index, noteStart, noteDuration.untilTieOrSlideEnd, step, noteKey, trillKey, dynamicValue, channel, advance);
     }
 
     private _generateTremoloPicking(
@@ -2181,21 +2167,21 @@ export class MidiFileGenerator {
             return;
         }
 
-        // the marks represent the duration
-        let tpLength =
-            note.beat.tremoloPicking!.getDurationAsTicks(note.beat.duration) * noteDuration.beatDurationFactor;
+        const step = note.beat.tremoloPicking!.getDurationAsTicks(note.beat.duration) * noteDuration.beatDurationFactor;
+        this._generatePickingAttacks(track.index, noteStart, noteDuration.untilTieOrSlideEnd, step, noteKey, noteKey, dynamicValue, channel, advance);
+    }
 
-        let tick: number = noteStart - (advance % tpLength);
-        const end: number = noteStart + noteDuration.untilTieOrSlideEnd;
-
+    private _generatePickingAttacks(trackIndex: number, noteStart: number, length: number, step: number, noteKey: number, alternateKey: number, velocity: number, channel: number, advance: number): void {
+        let useMainKey = Math.floor(advance / step) % 2 === 0;
+        // Keep the original subdivision start for the minimum-length check.
+        let tick = noteStart - (advance % step);
+        const end = noteStart + length;
         while (tick + 10 < end) {
-            // only the rest on last trill play
-            if (tick + tpLength >= end) {
-                tpLength = end - tick;
-            }
+            const duration = tick + step >= end ? end - tick : step;
             const lead = Math.max(0, noteStart - tick);
-            this._handler.addNote(track.index, tick + lead, tpLength - lead, noteKey, dynamicValue, channel);
-            tick += tpLength;
+            this._handler.addNote(trackIndex, tick + lead, duration - lead, useMainKey ? noteKey : alternateKey, velocity, channel);
+            useMainKey = !useMainKey;
+            tick += duration;
         }
     }
 
