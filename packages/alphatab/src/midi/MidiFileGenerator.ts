@@ -102,11 +102,11 @@ export class MidiFileGenerator {
 
     private _currentTime: number = 0;
     private _calculatedBeatTimers: Set<number> = new Set<number>();
-    private readonly _tiedBendRestarts = new Map<NonNullable<NoteBendWindow['restart']>, {
+    private readonly _tiedPitchRestarts = new Map<NonNullable<NoteBendWindow['restart']>, {
         startTick: number;
-        heldTick: number;
-        heldPitch: number;
-        attack: (pitch: number) => void;
+        notePitch: { tick: number; value: number };
+        channelPitch: { tick: number; value: number };
+        attack: (pitch: number, channelPitch?: number) => void;
     }>();
 
     /**
@@ -158,7 +158,7 @@ export class MidiFileGenerator {
     public *generateSteps(): IterableIterator<void> {
         this.transpositionPitches.clear();
         this._calculatedBeatTimers.clear();
-        this._tiedBendRestarts.clear();
+        this._tiedPitchRestarts.clear();
         this._currentTime = 0;
 
         // initialize tracks
@@ -1011,12 +1011,14 @@ export class MidiFileGenerator {
         const channel: number = this._determineChannel(track, note);
         const pitchSequence = note.playbackPitchCurves?.get(Math.round(beatStart));
         const bendWindow = note.playbackBendWindows?.get(Math.round(beatStart));
+        const whammyWindow = note.playbackWhammyWindows?.get(Math.round(beatStart));
         let initialBend: number = 0;
 
         const noteSoundDuration: number = Math.max(noteDuration.untilTieOrSlideEnd, noteDuration.letRingEnd);
 
-        if (bendWindow?.restart) {
-            this._generateTiedBendRestart(note, noteStart, noteSoundDuration, noteKey, channel, velocity, tempoOnBeatStart, bendWindow, nativeNoteLength);
+        const restartWindow = bendWindow?.restart ? bendWindow : whammyWindow?.restart ? whammyWindow : undefined;
+        if (restartWindow) {
+            this._generateTiedPitchRestart(note, noteStart, noteSoundDuration, noteKey, channel, velocity, tempoOnBeatStart, restartWindow, nativeNoteLength, beatStart, restartWindow === whammyWindow);
             return;
         }
 
@@ -1036,7 +1038,8 @@ export class MidiFileGenerator {
             initialBend = MidiFileGenerator.getPitchWheel(0);
         }
 
-        if (initialBend >= 0 && (bendWindow?.endTick === undefined || noteStart <= bendWindow.endTick)) {
+        const pitchEndTick = bendWindow?.endTick ?? whammyWindow?.endTick;
+        if (initialBend >= 0 && (pitchEndTick === undefined || noteStart <= pitchEndTick)) {
             this._handler.addNoteBend(track.index, noteStart, channel, noteKey, initialBend);
         }
 
@@ -1093,14 +1096,13 @@ export class MidiFileGenerator {
                 this._generateBend(note, noteStart, noteDuration, noteKey, channel, tempoOnBeatStart, projectedDuration !== undefined);
             }
         } else if (note.beat.hasWhammyBar && note.index === 0) {
-            const advance = note.playbackWhammyWindows?.get(Math.round(beatStart));
-            if (advance === undefined) {
+            if (!whammyWindow) {
                 this._generateWhammy(note.beat, noteStart, noteDuration, channel, tempoOnBeatStart);
             } else {
                 const originalDuration = new MidiNoteDuration();
                 originalDuration.noteOnly = nativeNoteLength;
-                const endTick = noteStart + noteDuration.noteOnly;
-                this._generatePitchWindow(noteStart, endTick, advance, MidiFileGenerator.getPitchWheel(0),
+                const endTick = whammyWindow.endTick ?? noteStart + noteDuration.noteOnly;
+                this._generatePitchWindow(noteStart, endTick, whammyWindow.advance, MidiFileGenerator.getPitchWheel(0),
                     (tick, value) => this._handler.addBend(track.index, tick, channel, value),
                     (start, emit) => this._generateWhammy(note.beat, beatStart, originalDuration, channel, tempoOnBeatStart, endTick,
                         (tick, value) => emit(tick + (start - beatStart), value)));
@@ -1646,43 +1648,51 @@ export class MidiFileGenerator {
         });
     }
 
-    private _generateTiedBendRestart(note: Note, noteStart: number, length: number, noteKey: number, channel: number, velocity: number, tempo: number, window: NoteBendWindow, nativeNoteLength: number): void {
+    private _generateTiedPitchRestart(note: Note, noteStart: number, length: number, noteKey: number, channel: number, velocity: number, tempo: number, window: NoteBendWindow, nativeNoteLength: number, beatStart: number, whammy: boolean): void {
         const restart = window.restart!;
         const track = note.beat.voice.bar.staff.track.index;
         if (!note.isTieDestination) {
-            this._tiedBendRestarts.set(restart, {
+            this._tiedPitchRestarts.set(restart, {
                 startTick: noteStart,
-                heldTick: Number.NEGATIVE_INFINITY,
-                heldPitch: MidiFileGenerator.getPitchWheel(0),
-                attack: pitch => {
+                notePitch: { tick: Number.NEGATIVE_INFINITY, value: MidiFileGenerator.getPitchWheel(0) },
+                channelPitch: { tick: Number.NEGATIVE_INFINITY, value: MidiFileGenerator.getPitchWheel(0) },
+                attack: (pitch, channelPitch) => {
                     this._handler.addNoteBend(track, noteStart, channel, noteKey, pitch);
+                    if (channelPitch !== undefined) this._handler.addBend(track, noteStart, channel, channelPitch);
                     this._handler.addNote(track, noteStart, length, noteKey, velocity, channel);
                 }
             });
         }
-        const pending = this._tiedBendRestarts.get(restart);
+        const pending = this._tiedPitchRestarts.get(restart);
         if (!pending) return;
         const originalStart = noteStart - window.advance;
         const endTick = window.endTick!;
-        const emit = (tick: number, value: number) => {
+        const emit = (tick: number, value: number, shared = false) => {
+            const held = shared ? pending.channelPitch : pending.notePitch;
             if (tick <= pending.startTick) {
-                if (tick >= pending.heldTick) {
-                    pending.heldTick = tick;
-                    pending.heldPitch = value;
+                if (tick >= held.tick) {
+                    held.tick = tick;
+                    held.value = value;
                 }
             } else if (tick <= endTick) {
-                this._handler.addNoteBend(track, tick, channel, noteKey, value);
+                if (shared) this._handler.addBend(track, tick, channel, value);
+                else this._handler.addNoteBend(track, tick, channel, noteKey, value);
             }
         };
-        if (note.hasBend) {
-            emit(originalStart, MidiFileGenerator.getPitchWheel(note.bendPoints![0].value));
+        if (whammy ? note.beat.hasWhammyBar : note.hasBend) {
+            const points = whammy ? note.beat.whammyBarPoints! : note.bendPoints!;
+            emit(originalStart, MidiFileGenerator.getPitchWheel(points[0].value));
             const duration = new MidiNoteDuration();
             duration.noteOnly = nativeNoteLength;
-            this._generateBend(note, originalStart, duration, noteKey, channel, tempo, false, endTick, emit);
+            if (whammy) {
+                this._generateWhammy(note.beat, beatStart, duration, channel, tempo, endTick, (tick, value) => emit(tick + (originalStart - beatStart), value, true));
+            } else {
+                this._generateBend(note, originalStart, duration, noteKey, channel, tempo, false, endTick, emit);
+            }
         }
         if (note === restart.lastNote) {
-            pending.attack(pending.heldPitch);
-            this._tiedBendRestarts.delete(restart);
+            pending.attack(pending.notePitch.value, Number.isFinite(pending.channelPitch.tick) ? pending.channelPitch.value : undefined);
+            this._tiedPitchRestarts.delete(restart);
         }
     }
 

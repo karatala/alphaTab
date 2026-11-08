@@ -617,11 +617,11 @@ export class Note {
      */
     public playbackBendWindows?: Map<number, NoteBendWindow>;
 
-    /** Elapsed time at a clipped whammy attack, keyed by the unshifted beat tick on the first note.
+    /** Elapsed time at a clipped whammy attack, keyed by the unshifted beat tick on the first note. A tied beat can share the head's release tick.
      * @clone_ignore
      * @json_ignore
      */
-    public playbackWhammyWindows?: Map<number, number>;
+    public playbackWhammyWindows?: Map<number, NoteBendWindow>;
 
     /** Application pitch sequences by unshifted attack tick. Not saved notation.
      * @clone_ignore
