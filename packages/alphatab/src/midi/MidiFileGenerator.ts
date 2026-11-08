@@ -1,3 +1,4 @@
+import { sliceBeatEffectTiming, writeBeatEffectSlice } from '@coderline/alphatab/midi/MidiBeatEffectSlice';
 import { ControllerType } from '@coderline/alphatab/midi/ControllerType';
 import type { IMidiFileHandler } from '@coderline/alphatab/midi/IMidiFileHandler';
 
@@ -807,7 +808,7 @@ export class MidiFileGenerator {
         if (beat.isRest) {
             this._handler.addRest(track.index, barStartTick + beatStart, track.playbackInfo.primaryChannel);
         } else if (beat.deadSlapped) {
-            this._generateDeadSlap(beat, barStartTick + beatStart);
+            this._generateDeadSlap(beat, barStartTick, barStartTick + beatStart);
         } else {
             const brushInfo = this._getBrushInfo(beat);
             const rasgueadoInfo = this._getRasgueadoInfo(beat, audioDuration);
@@ -824,7 +825,7 @@ export class MidiFileGenerator {
         }
 
         if (beat.fade !== FadeType.None) {
-            this._generateFade(beat, barStartTick + beatStart, audioDuration);
+            this._generateFade(beat, barStartTick, barStartTick + beatStart, audioDuration);
         }
 
         if (beat.vibrato !== VibratoType.None) {
@@ -840,20 +841,15 @@ export class MidiFileGenerator {
                     bendAmplitude = this._settings.player.vibrato.beatWideAmplitude;
                     break;
             }
-            this._generateVibratorWithParams(
-                barStartTick + beatStart,
+            const start = barStartTick + beatStart;
+            writeBeatEffectSlice(
+                beat.playbackEffectWindow,
+                barStartTick,
+                start,
                 beat.playbackDuration,
-                phaseLength,
-                0,
-                bendAmplitude,
-                (tick, value) => {
-                    this._handler.addBend(
-                        beat.voice.bar.staff.track.index,
-                        tick,
-                        track.playbackInfo.secondaryChannel,
-                        value
-                    );
-                }
+                MidiFileGenerator.getPitchWheel(0),
+                (tick, value) => this._handler.addBend(track.index, tick, track.playbackInfo.secondaryChannel, value),
+                write => this._generateVibratorWithParams(start, beat.playbackDuration, phaseLength, 0, bendAmplitude, write)
             );
         }
     }
@@ -940,16 +936,17 @@ export class MidiFileGenerator {
         return durations;
     }
 
-    private _generateDeadSlap(beat: Beat, beatStart: number): void {
+    private _generateDeadSlap(beat: Beat, barStart: number, beatStart: number): void {
         // we generate dead-slap as 64th note on all strings (0 fret)
         const deadSlapDuration = MidiUtils.toTicks(Duration.SixtyFourth);
         const staff = beat.voice.bar.staff;
-        if (staff.tuning.length > 0) {
+        const range = sliceBeatEffectTiming(beat.playbackEffectWindow, barStart, beatStart, deadSlapDuration);
+        if (range && staff.tuning.length > 0) {
             for (const t of staff.tuning) {
                 this._handler.addNote(
                     staff.track.index,
-                    beatStart,
-                    deadSlapDuration,
+                    range.start,
+                    range.end - range.start,
                     t,
                     MidiUtils.dynamicToVelocity(DynamicValue.F),
                     staff.track.playbackInfo.primaryChannel
@@ -1406,62 +1403,43 @@ export class MidiFileGenerator {
         return MidiUtils.dynamicToVelocity(note.dynamics, adjustment);
     }
 
-    private _generateFade(beat: Beat, beatStart: number, beatDuration: number): void {
+    private _generateFade(beat: Beat, barStart: number, beatStart: number, beatDuration: number): void {
         const track: Track = beat.voice.bar.staff.track;
-        switch (beat.fade) {
-            case FadeType.FadeIn:
-                this._generateFadeSteps(
-                    track,
-                    beatStart,
-                    beatDuration,
-                    0,
-                    MidiFileGenerator._toChannelShort(track.playbackInfo.volume)
-                );
-                break;
-            case FadeType.FadeOut:
-                this._generateFadeSteps(
-                    track,
-                    beatStart,
-                    beatDuration,
-                    MidiFileGenerator._toChannelShort(track.playbackInfo.volume),
-                    0
-                );
-                break;
-            case FadeType.VolumeSwell:
-                const half = (beatDuration / 2) | 0;
-                this._generateFadeSteps(
-                    track,
-                    beatStart,
-                    half,
-                    0,
-                    MidiFileGenerator._toChannelShort(track.playbackInfo.volume)
-                );
-                this._generateFadeSteps(
-                    track,
-                    beatStart + half,
-                    half,
-                    MidiFileGenerator._toChannelShort(track.playbackInfo.volume),
-                    0
-                );
-
-                break;
-        }
-        if (beat.fade === FadeType.FadeOut || beat.fade === FadeType.VolumeSwell) {
-            const volume = MidiFileGenerator._toChannelShort(track.playbackInfo.volume);
+        const volume = MidiFileGenerator._toChannelShort(track.playbackInfo.volume);
+        const writeVolume = (tick: number, value: number) => {
+            this._handler.addControlChange(track.index, tick, track.playbackInfo.primaryChannel, ControllerType.VolumeCoarse, value);
+            this._handler.addControlChange(track.index, tick, track.playbackInfo.secondaryChannel, ControllerType.VolumeCoarse, value);
+        };
+        const includesEnd = writeBeatEffectSlice(beat.playbackEffectWindow, barStart, beatStart, beatDuration, volume, writeVolume, write => {
+            switch (beat.fade) {
+                case FadeType.FadeIn:
+                    this._generateFadeSteps(beatStart, beatDuration, 0, volume, write);
+                    break;
+                case FadeType.FadeOut:
+                    this._generateFadeSteps(beatStart, beatDuration, volume, 0, write);
+                    break;
+                case FadeType.VolumeSwell: {
+                    const half = (beatDuration / 2) | 0;
+                    this._generateFadeSteps(beatStart, half, 0, volume, write);
+                    this._generateFadeSteps(beatStart + half, half, volume, 0, write);
+                    break;
+                }
+            }
+        });
+        if (includesEnd && (beat.fade === FadeType.FadeOut || beat.fade === FadeType.VolumeSwell)) {
             const silenceTick = Math.max(beatStart, beatStart + beatDuration - 1);
             this._handler.addControlChange(track.index, silenceTick, track.playbackInfo.primaryChannel, ControllerType.AllSoundOff, 0);
             this._handler.addControlChange(track.index, silenceTick, track.playbackInfo.secondaryChannel, ControllerType.AllSoundOff, 0);
-            this._handler.addControlChange(track.index, beatStart + beatDuration, track.playbackInfo.primaryChannel, ControllerType.VolumeCoarse, volume);
-            this._handler.addControlChange(track.index, beatStart + beatDuration, track.playbackInfo.secondaryChannel, ControllerType.VolumeCoarse, volume);
+            writeVolume(beatStart + beatDuration, volume);
         }
     }
 
     private _generateFadeSteps(
-        track: Track,
         start: number,
         duration: number,
         startVolume: number,
-        endVolume: number
+        endVolume: number,
+        writeVolume: (tick: number, value: number) => void
     ): void {
         const tickStep: number = 120;
         // we want to reach the target volume a bit earlier than the end of the note
@@ -1472,26 +1450,12 @@ export class MidiFileGenerator {
         const steps: number = (duration / tickStep + 1) | 0;
         const endTick: number = start + duration;
 
-        for (let i = 0; i < steps; i++) {
+        for (let idx = 0; idx < steps; idx++) {
             // ensure final value at end depending on rounding we might not reach it exactly
-            const isLast = i === steps - 1;
-            const tick: number = isLast ? endTick : start + i * tickStep;
+            const isLast = idx === steps - 1;
+            const tick: number = isLast ? endTick : start + idx * tickStep;
             const volume: number = isLast ? endVolume : Math.round(startVolume + (tick - start) * volumeFactor);
-
-            this._handler.addControlChange(
-                track.index,
-                tick,
-                track.playbackInfo.primaryChannel,
-                ControllerType.VolumeCoarse,
-                volume
-            );
-            this._handler.addControlChange(
-                track.index,
-                tick,
-                track.playbackInfo.secondaryChannel,
-                ControllerType.VolumeCoarse,
-                volume
-            );
+            writeVolume(tick, volume);
         }
     }
 

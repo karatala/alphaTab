@@ -1,3 +1,4 @@
+import type { MidiBeatEffectWindow } from '@coderline/alphatab/midi/MidiBeatEffectSlice';
 import { MidiUtils } from '@coderline/alphatab/midi/MidiUtils';
 import { Automation, AutomationType } from '@coderline/alphatab/model/Automation';
 import { BendPoint } from '@coderline/alphatab/model/BendPoint';
@@ -651,6 +652,14 @@ export class Beat {
      * Gets or sets the duration that the note is played during the audio generation.
      */
     public playbackDuration: number = 0;
+
+    /**
+     * Relative MIDI limits for a clipped beat effect.
+     * @json_ignore
+     * @clone_ignore
+     * @internal
+     */
+    public playbackEffectWindow?: MidiBeatEffectWindow;
 
     /**
      * The duration in midi ticks to use for this beat on the {@link displayDuration}
