@@ -1093,7 +1093,18 @@ export class MidiFileGenerator {
                 this._generateBend(note, noteStart, noteDuration, noteKey, channel, tempoOnBeatStart, projectedDuration !== undefined);
             }
         } else if (note.beat.hasWhammyBar && note.index === 0) {
-            this._generateWhammy(note.beat, noteStart, noteDuration, channel, tempoOnBeatStart);
+            const advance = note.playbackWhammyWindows?.get(Math.round(beatStart));
+            if (advance === undefined) {
+                this._generateWhammy(note.beat, noteStart, noteDuration, channel, tempoOnBeatStart);
+            } else {
+                const originalDuration = new MidiNoteDuration();
+                originalDuration.noteOnly = nativeNoteLength;
+                const endTick = noteStart + noteDuration.noteOnly;
+                this._generatePitchWindow(noteStart, endTick, advance, MidiFileGenerator.getPitchWheel(0),
+                    (tick, value) => this._handler.addBend(track.index, tick, channel, value),
+                    (start, emit) => this._generateWhammy(note.beat, beatStart, originalDuration, channel, tempoOnBeatStart, endTick,
+                        (tick, value) => emit(tick + (start - beatStart), value)));
+            }
         } else if (note.slideInType !== SlideInType.None || note.slideOutType !== SlideOutType.None) {
             this._generateSlide(note, noteStart, noteDuration, noteKey, channel, tempoOnBeatStart);
         } else if (
@@ -1680,24 +1691,25 @@ export class MidiFileGenerator {
         originalDuration.noteOnly = window.duration ?? nativeNoteLength;
         const hasProjectedDuration = window.duration !== undefined;
         const end = window.endTick ?? noteStart + length;
-        if (window.advance === 0) {
-            this._generateBend(note, noteStart, originalDuration, noteKey, channel, tempo, hasProjectedDuration, end);
-            return;
-        }
-        let initialValue = MidiFileGenerator.getPitchWheel(note.bendPoints![0].value);
         const track = note.beat.voice.bar.staff.track.index;
-        let started = false;
+        this._generatePitchWindow(noteStart, end, window.advance, MidiFileGenerator.getPitchWheel(note.bendPoints![0].value),
+            (tick, value) => this._handler.addNoteBend(track, tick, channel, noteKey, value),
+            (start, emit) => this._generateBend(note, start, originalDuration, noteKey, channel, tempo, hasProjectedDuration, end, emit));
+    }
+
+    private _generatePitchWindow(start: number, end: number, advance: number, initialValue: number, addPitch: (tick: number, value: number) => void, generate: (start: number, emit: (tick: number, value: number) => void) => void): void {
+        let started = advance === 0;
         const emitInitial = () => {
             if (started) return;
-            this._handler.addNoteBend(track, noteStart, channel, noteKey, initialValue);
+            addPitch(start, initialValue);
             started = true;
         };
-        this._generateBend(note, noteStart - window.advance, originalDuration, noteKey, channel, tempo, hasProjectedDuration, end, (tick, value) => {
-            if (tick <= noteStart) {
+        generate(start - advance, (tick, value) => {
+            if (advance > 0 && tick <= start) {
                 initialValue = value;
             } else if (tick <= end) {
                 emitInitial();
-                this._handler.addNoteBend(track, tick, channel, noteKey, value);
+                addPitch(tick, value);
             }
         });
         emitInitial();
@@ -1920,7 +1932,8 @@ export class MidiFileGenerator {
         noteDuration: MidiNoteDuration,
         channel: number,
         tempoOnBeatStart: number,
-        endTick: number = Number.POSITIVE_INFINITY
+        endTick: number = Number.POSITIVE_INFINITY,
+        emit?: (tick: number, value: number) => void
     ): void {
         const bendPoints: BendPoint[] = beat.whammyBarPoints!;
         const track: Track = beat.voice.bar.staff.track;
@@ -1930,9 +1943,9 @@ export class MidiFileGenerator {
             noteStart--;
         }
 
-        const addBend: (tick: number, value: number) => void = (tick, value) => {
+        const addBend: (tick: number, value: number) => void = emit ?? ((tick, value) => {
             if (tick <= endTick) this._handler.addBend(track.index, tick, channel, value);
-        };
+        });
 
         let playedBendPoints: BendPoint[] = [];
         switch (beat.whammyBarType) {
