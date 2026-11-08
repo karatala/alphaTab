@@ -610,7 +610,7 @@ export class Note {
      */
     public playbackPickingOffsets?: Map<number, number>;
 
-    /** Window of a native bend, keyed by the unshifted beat tick. Omit duration for a right cut with native tie timing.
+    /** Window of a native bend, keyed by the unshifted beat tick. Omit duration to keep native tie timing.
      * @clone_ignore
      * @json_ignore
      */
