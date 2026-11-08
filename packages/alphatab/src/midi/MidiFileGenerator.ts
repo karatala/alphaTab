@@ -1002,6 +1002,7 @@ export class MidiFileGenerator {
         const velocity: number = MidiFileGenerator._getNoteVelocity(note);
         const channel: number = this._determineChannel(track, note);
         const pitchSequence = note.playbackPitchCurves?.get(Math.round(beatStart));
+        const bendWindow = note.playbackBendWindows?.get(Math.round(beatStart));
         let initialBend: number = 0;
 
         const noteSoundDuration: number = Math.max(noteDuration.untilTieOrSlideEnd, noteDuration.letRingEnd);
@@ -1010,7 +1011,7 @@ export class MidiFileGenerator {
             const first = pitchSequence.curves.find(curve => curve.offset === 0);
             initialBend = note.isTieDestination ? -1 : first ? MidiFileGenerator.getPitchWheel((first.kind === 'bend' ? first.note.bendPoints : first.note.beat.whammyBarPoints)![0].value) : MidiFileGenerator.getPitchWheel(0);
         } else if (note.hasBend) {
-            initialBend = MidiFileGenerator.getPitchWheel(note.bendPoints![0].value);
+            initialBend = bendWindow && bendWindow.advance > 0 ? -1 : MidiFileGenerator.getPitchWheel(note.bendPoints![0].value);
         } else if (note.beat.hasWhammyBar) {
             initialBend = MidiFileGenerator.getPitchWheel(note.beat.whammyBarPoints![0].value);
         } else if (
@@ -1073,7 +1074,11 @@ export class MidiFileGenerator {
                 else if (note.index === 0) this._generateWhammy(curve.note.beat, startTick, duration, channel, curve.tempo, endTick);
             }
         } else if (note.hasBend) {
-            this._generateBend(note, noteStart, noteDuration, noteKey, channel, tempoOnBeatStart, projectedDuration !== undefined);
+            if (bendWindow) {
+                this._generateBendWindow(note, noteStart, noteDuration.noteOnly, noteKey, channel, tempoOnBeatStart, bendWindow);
+            } else {
+                this._generateBend(note, noteStart, noteDuration, noteKey, channel, tempoOnBeatStart, projectedDuration !== undefined);
+            }
         } else if (note.beat.hasWhammyBar && note.index === 0) {
             this._generateWhammy(note.beat, noteStart, noteDuration, channel, tempoOnBeatStart);
         } else if (note.slideInType !== SlideInType.None || note.slideOutType !== SlideOutType.None) {
@@ -1617,13 +1622,40 @@ export class MidiFileGenerator {
         });
     }
 
-    private _generateBend(note: Note, noteStart: number, noteDuration: MidiNoteDuration, noteKey: number, channel: number, tempoOnBeatStart: number, hasProjectedDuration: boolean, endTick: number = Number.POSITIVE_INFINITY): void {
+    private _generateBendWindow(note: Note, noteStart: number, length: number, noteKey: number, channel: number, tempo: number, window: { advance: number; duration: number }): void {
+        const originalDuration = new MidiNoteDuration();
+        originalDuration.noteOnly = window.duration;
+        const end = noteStart + length;
+        if (window.advance === 0) {
+            this._generateBend(note, noteStart, originalDuration, noteKey, channel, tempo, true, end);
+            return;
+        }
+        let initialValue = MidiFileGenerator.getPitchWheel(note.bendPoints![0].value);
+        const track = note.beat.voice.bar.staff.track.index;
+        let started = false;
+        const emitInitial = () => {
+            if (started) return;
+            this._handler.addNoteBend(track, noteStart, channel, noteKey, initialValue);
+            started = true;
+        };
+        this._generateBend(note, noteStart - window.advance, originalDuration, noteKey, channel, tempo, true, end, (tick, value) => {
+            if (tick <= noteStart) {
+                initialValue = value;
+            } else if (tick <= end) {
+                emitInitial();
+                this._handler.addNoteBend(track, tick, channel, noteKey, value);
+            }
+        });
+        emitInitial();
+    }
+
+    private _generateBend(note: Note, noteStart: number, noteDuration: MidiNoteDuration, noteKey: number, channel: number, tempoOnBeatStart: number, hasProjectedDuration: boolean, endTick: number = Number.POSITIVE_INFINITY, emit?: (tick: number, value: number) => void): void {
         const bendPoints: BendPoint[] = note.bendPoints!;
         const track: Track = note.beat.voice.bar.staff.track;
 
-        const addBend: (tick: number, value: number) => void = (tick, value) => {
+        const addBend: (tick: number, value: number) => void = emit ?? ((tick, value) => {
             if (tick <= endTick) this._handler.addNoteBend(track.index, tick, channel, noteKey, value);
-        };
+        });
 
         // if bend is extended on next tied note, we directly bend to the final bend value
         let finalBendValue: number | null = null;
