@@ -1,6 +1,7 @@
 # Instructions for AI Agents Contributing to alphaTab
 
 - Local MIDI preparation can yield between track initialization and master-bar traversal steps. generate and sync-point helpers use the same traversal without changing MIDI order, tick shift, lookup, timers, transposition or sync semantics. The paced API rejects stale, replaced or disposed work before the next score read and installs only a complete current MIDI/lookup pair. The application owns scheduling and model/settings validity.
+- Native MIDI can suppress an individual note visit through runtime Note.playbackMutedTicks. Key it by the unshifted beat tick, like playbackStartOffsets. Omit the set from notation serialization and cloning. Apply the filter before generating any events for the note.
 - Main synth-worker MIDI messages carry independent transferable Float64Array packets. Decode through the existing event constructors with exact numeric fields and track/event order. Retain existing JSON semantics and caller-owned source data. Keep both worker endpoints aligned; this is a runtime message format, not project persistence.
 
 - Local horizontal renderer reuse expands through linked master-bar renderer groups in both directions before caching. A changed middle bar can split or join a grouped effect band; complete SVG and bounds must match full layout through history. This expansion does not request another model owner or full score transmission.

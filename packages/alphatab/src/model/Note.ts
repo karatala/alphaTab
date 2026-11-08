@@ -586,6 +586,12 @@ export class Note {
      */
     public playbackVelocity?: number;
 
+    /** Application mute for selected visits, keyed by unshifted playback tick.
+     * @clone_ignore
+     * @json_ignore
+     */
+    public playbackMutedTicks?: Set<number>;
+
     /** Application attack offsets by unshifted playback tick.
      * @clone_ignore
      * @json_ignore

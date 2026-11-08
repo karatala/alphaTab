@@ -974,7 +974,7 @@ export class MidiFileGenerator {
         brushInfo: Int32Array,
         rasgueadoInfo: RasgueadoInfo | null
     ): void {
-        if (note.playbackVelocity === 0) return;
+        if (note.playbackVelocity === 0 || note.playbackMutedTicks?.has(Math.round(beatStart))) return;
         const track: Track = note.beat.voice.bar.staff.track;
         const staff: Staff = note.beat.voice.bar.staff;
         let noteKey: number = note.calculateRealValue(this.applyTranspositionPitches, true);
