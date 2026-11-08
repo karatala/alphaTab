@@ -8,7 +8,7 @@ import { MidiTickLookup } from '@coderline/alphatab/midi/MidiTickLookup';
 import { MidiUtils } from '@coderline/alphatab/midi/MidiUtils';
 import { AccentuationType } from '@coderline/alphatab/model/AccentuationType';
 import { type Automation, AutomationType } from '@coderline/alphatab/model/Automation';
-import type { Bar } from '@coderline/alphatab/model/Bar';
+import { type Bar, SustainPedalMarkerType } from '@coderline/alphatab/model/Bar';
 import type { Beat } from '@coderline/alphatab/model/Beat';
 import { BendPoint } from '@coderline/alphatab/model/BendPoint';
 import { BendStyle } from '@coderline/alphatab/model/BendStyle';
@@ -161,6 +161,15 @@ export class MidiFileGenerator {
         this._tiedPitchRestarts.clear();
         this._currentTime = 0;
 
+        const pedalStaves = this._score.playbackSustainPedals && this._handler.startSustainPedalPlayback
+            ? this._score.tracks.flatMap(track => track.staves.filter(staff =>
+                !staff.isPercussion && staff.bars.some(bar => bar.sustainPedals.some(marker => marker.pedalType === SustainPedalMarkerType.Down))))
+            : [];
+        if (pedalStaves.length > 0) {
+            const channels = new Set(pedalStaves.flatMap(({ track }) => [track.playbackInfo.primaryChannel, track.playbackInfo.secondaryChannel]));
+            this._handler.startSustainPedalPlayback!(pedalStaves, channels);
+        }
+
         // initialize tracks
         for (const track of this._score.tracks) {
             this._generateTrack(track);
@@ -185,12 +194,19 @@ export class MidiFileGenerator {
                 for (const track of this._score.tracks) {
                     for (const staff of track.staves) {
                         if (index < staff.bars.length) {
-                            this._generateBar(staff.bars[index], currentTick, currentTempo);
+                            const bar = staff.bars[index];
+                            if (pedalStaves.length > 0) {
+                                this._handler.beginSustainPedalBar?.(bar, currentTick);
+                            }
+                            this._generateBar(bar, currentTick, currentTempo);
                         }
                     }
                 }
             },
             endTick => {
+                if (pedalStaves.length > 0) {
+                    this._handler.finishSustainPedalPlayback?.(endTick);
+                }
                 for (const track of this._score.tracks) {
                     this._handler.finishTrack(track.index, endTick);
                 }

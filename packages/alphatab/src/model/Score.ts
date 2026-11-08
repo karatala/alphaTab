@@ -318,6 +318,14 @@ export class Score {
     public tracks: Track[] = [];
 
     /**
+     * Enables playback of notation sustain marks in the application.
+     * @json_ignore
+     * @clone_ignore
+     * @internal
+     */
+    public playbackSustainPedals: boolean = false;
+
+    /**
      * Defines how many bars are placed into the systems (rows) when displaying
      * multiple tracks unless a value is set in the systemsLayout.
      */

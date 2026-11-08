@@ -1,3 +1,5 @@
+import type { Bar } from '@coderline/alphatab/model/Bar';
+import type { Staff } from '@coderline/alphatab/model/Staff';
 import type { ControllerType } from '@coderline/alphatab/midi/ControllerType';
 
 /**
@@ -5,6 +7,13 @@ import type { ControllerType } from '@coderline/alphatab/midi/ControllerType';
  * @public
  */
 export interface IMidiFileHandler {
+    /** @internal */
+    startSustainPedalPlayback?(staves: readonly Staff[], channels: ReadonlySet<number>): void;
+    /** @internal */
+    beginSustainPedalBar?(bar: Bar, tick: number): void;
+    /** @internal */
+    finishSustainPedalPlayback?(tick: number): void;
+
     /**
      * Adds a time signature to the generated midi file
      * @param tick The midi ticks when this event should be happening.

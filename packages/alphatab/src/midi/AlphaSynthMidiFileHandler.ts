@@ -10,6 +10,9 @@ import {
     TempoChangeEvent,
     TimeSignatureEvent
 } from '@coderline/alphatab/midi/MidiEvent';
+import { SustainPedalPlayback } from '@coderline/alphatab/midi/SustainPedalPlayback';
+import type { Bar } from '@coderline/alphatab/model/Bar';
+import type { Staff } from '@coderline/alphatab/model/Staff';
 import type { IMidiFileHandler } from '@coderline/alphatab/midi/IMidiFileHandler';
 import { type MidiFile, MidiFileFormat } from '@coderline/alphatab/midi/MidiFile';
 import { SynthConstants } from '@coderline/alphatab/synth/SynthConstants';
@@ -23,6 +26,7 @@ import type { ControllerType } from '@coderline/alphatab/midi/ControllerType';
 export class AlphaSynthMidiFileHandler implements IMidiFileHandler {
     private _midiFile: MidiFile;
     private _smf1Mode: boolean;
+    private _sustainPedals: SustainPedalPlayback | null = null;
 
     /**
      * An indicator by how many midi-ticks the song contents are shifted.
@@ -70,27 +74,34 @@ export class AlphaSynthMidiFileHandler implements IMidiFileHandler {
         }
     }
 
+    public startSustainPedalPlayback(staves: readonly Staff[], channels: ReadonlySet<number>) {
+        if (!this._smf1Mode && staves.length > 0) {
+            this._sustainPedals = new SustainPedalPlayback(staves, channels);
+        }
+    }
+
+    public beginSustainPedalBar(bar: Bar, tick: number) {
+        this._sustainPedals?.beginBar(bar, tick);
+    }
+
+    public finishSustainPedalPlayback(tick: number) {
+        if (this._sustainPedals?.finish(tick, this.tickShift)) {
+            for (const track of this._midiFile.tracks) {
+                track.events.sort((first, second) => first.tick - second.tick);
+            }
+        }
+        this._sustainPedals = null;
+    }
+
     public addNote(track: number, start: number, length: number, key: number, velocity: number, channel: number): void {
         start += this.tickShift;
-        this._midiFile.addEvent(
-            new NoteOnEvent(
-                track,
-                start,
-                channel,
-                AlphaSynthMidiFileHandler._fixValue(key),
-                AlphaSynthMidiFileHandler._fixValue(velocity)
-            )
-        );
-
-        this._midiFile.addEvent(
-            new NoteOffEvent(
-                track,
-                start + length,
-                channel,
-                AlphaSynthMidiFileHandler._fixValue(key),
-                AlphaSynthMidiFileHandler._fixValue(velocity)
-            )
-        );
+        const noteKey = AlphaSynthMidiFileHandler._fixValue(key);
+        const noteVelocity = AlphaSynthMidiFileHandler._fixValue(velocity);
+        const attack = new NoteOnEvent(track, start, channel, noteKey, noteVelocity);
+        const release = new NoteOffEvent(track, start + length, channel, noteKey, noteVelocity);
+        this._midiFile.addEvent(attack);
+        this._midiFile.addEvent(release);
+        this._sustainPedals?.addNote(attack, release);
     }
 
     private static _fixValue(value: number): number {
