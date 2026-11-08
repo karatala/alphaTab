@@ -106,7 +106,7 @@ export class MidiFileGenerator {
         startTick: number;
         notePitch: { tick: number; value: number };
         channelPitch: { tick: number; value: number };
-        attack: (pitch: number, channelPitch?: number) => void;
+        attacks: ((pitch: number, channelPitch?: number) => void)[];
     }>();
 
     /**
@@ -1651,20 +1651,24 @@ export class MidiFileGenerator {
     private _generateTiedPitchRestart(note: Note, noteStart: number, length: number, noteKey: number, channel: number, velocity: number, tempo: number, window: NoteBendWindow, nativeNoteLength: number, beatStart: number, whammy: boolean): void {
         const restart = window.restart!;
         const track = note.beat.voice.bar.staff.track.index;
-        if (!note.isTieDestination) {
-            this._tiedPitchRestarts.set(restart, {
+        let pending = this._tiedPitchRestarts.get(restart);
+        if (!pending && !note.isTieDestination) {
+            pending = {
                 startTick: noteStart,
                 notePitch: { tick: Number.NEGATIVE_INFINITY, value: MidiFileGenerator.getPitchWheel(0) },
                 channelPitch: { tick: Number.NEGATIVE_INFINITY, value: MidiFileGenerator.getPitchWheel(0) },
-                attack: (pitch, channelPitch) => {
-                    this._handler.addNoteBend(track, noteStart, channel, noteKey, pitch);
-                    if (channelPitch !== undefined) this._handler.addBend(track, noteStart, channel, channelPitch);
-                    this._handler.addNote(track, noteStart, length, noteKey, velocity, channel);
-                }
+                attacks: []
+            };
+            this._tiedPitchRestarts.set(restart, pending);
+        }
+        if (!pending) return;
+        if (!note.isTieDestination) {
+            pending.attacks.push((pitch, channelPitch) => {
+                this._handler.addNoteBend(track, noteStart, channel, noteKey, pitch);
+                if (channelPitch !== undefined) this._handler.addBend(track, noteStart, channel, channelPitch);
+                this._handler.addNote(track, noteStart, length, noteKey, velocity, channel);
             });
         }
-        const pending = this._tiedPitchRestarts.get(restart);
-        if (!pending) return;
         const originalStart = noteStart - window.advance;
         const endTick = window.endTick!;
         const emit = (tick: number, value: number, shared = false) => {
@@ -1682,16 +1686,22 @@ export class MidiFileGenerator {
         if (whammy ? note.beat.hasWhammyBar : note.hasBend) {
             const points = whammy ? note.beat.whammyBarPoints! : note.bendPoints!;
             emit(originalStart, MidiFileGenerator.getPitchWheel(points[0].value));
-            const duration = new MidiNoteDuration();
-            duration.noteOnly = nativeNoteLength;
-            if (whammy) {
-                this._generateWhammy(note.beat, beatStart, duration, channel, tempo, endTick, (tick, value) => emit(tick + (originalStart - beatStart), value, true));
-            } else {
-                this._generateBend(note, originalStart, duration, noteKey, channel, tempo, false, endTick, emit);
+            if (!whammy || note.index === 0) {
+                const duration = new MidiNoteDuration();
+                duration.noteOnly = nativeNoteLength;
+                if (whammy) {
+                    this._generateWhammy(note.beat, beatStart, duration, channel, tempo, endTick, (tick, value) => emit(tick + (originalStart - beatStart), value, true));
+                } else {
+                    this._generateBend(note, originalStart, duration, noteKey, channel, tempo, false, endTick, emit);
+                }
             }
         }
         if (note === restart.lastNote) {
-            pending.attack(pending.notePitch.value, Number.isFinite(pending.channelPitch.tick) ? pending.channelPitch.value : undefined);
+            let channelPitch = Number.isFinite(pending.channelPitch.tick) ? pending.channelPitch.value : undefined;
+            for (const attack of pending.attacks) {
+                attack(pending.notePitch.value, channelPitch);
+                channelPitch = undefined;
+            }
             this._tiedPitchRestarts.delete(restart);
         }
     }
