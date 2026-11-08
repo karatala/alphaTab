@@ -17,7 +17,7 @@ import { BrushType } from '@coderline/alphatab/model/BrushType';
 import { Duration } from '@coderline/alphatab/model/Duration';
 import { GraceType } from '@coderline/alphatab/model/GraceType';
 import type { MasterBar } from '@coderline/alphatab/model/MasterBar';
-import type { Note } from '@coderline/alphatab/model/Note';
+import type { Note, NoteBendWindow } from '@coderline/alphatab/model/Note';
 import type { PlaybackInformation } from '@coderline/alphatab/model/PlaybackInformation';
 import type { Score } from '@coderline/alphatab/model/Score';
 import { SimileMark } from '@coderline/alphatab/model/SimileMark';
@@ -102,6 +102,12 @@ export class MidiFileGenerator {
 
     private _currentTime: number = 0;
     private _calculatedBeatTimers: Set<number> = new Set<number>();
+    private readonly _tiedBendRestarts = new Map<NonNullable<NoteBendWindow['restart']>, {
+        startTick: number;
+        heldTick: number;
+        heldPitch: number;
+        attack: (pitch: number) => void;
+    }>();
 
     /**
      * Gets a lookup object which can be used to quickly find beats and bars
@@ -152,6 +158,7 @@ export class MidiFileGenerator {
     public *generateSteps(): IterableIterator<void> {
         this.transpositionPitches.clear();
         this._calculatedBeatTimers.clear();
+        this._tiedBendRestarts.clear();
         this._currentTime = 0;
 
         // initialize tracks
@@ -1008,6 +1015,11 @@ export class MidiFileGenerator {
 
         const noteSoundDuration: number = Math.max(noteDuration.untilTieOrSlideEnd, noteDuration.letRingEnd);
 
+        if (bendWindow?.restart) {
+            this._generateTiedBendRestart(note, noteStart, noteSoundDuration, noteKey, channel, velocity, tempoOnBeatStart, bendWindow, nativeNoteLength);
+            return;
+        }
+
         if (pitchSequence !== undefined) {
             const first = pitchSequence.curves.find(curve => curve.offset === 0);
             initialBend = note.isTieDestination ? -1 : first ? MidiFileGenerator.getPitchWheel((first.kind === 'bend' ? first.note.bendPoints : first.note.beat.whammyBarPoints)![0].value) : MidiFileGenerator.getPitchWheel(0);
@@ -1623,7 +1635,47 @@ export class MidiFileGenerator {
         });
     }
 
-    private _generateBendWindow(note: Note, noteStart: number, length: number, noteKey: number, channel: number, tempo: number, window: { advance: number; duration?: number; endTick?: number }, nativeNoteLength: number): void {
+    private _generateTiedBendRestart(note: Note, noteStart: number, length: number, noteKey: number, channel: number, velocity: number, tempo: number, window: NoteBendWindow, nativeNoteLength: number): void {
+        const restart = window.restart!;
+        const track = note.beat.voice.bar.staff.track.index;
+        if (!note.isTieDestination) {
+            this._tiedBendRestarts.set(restart, {
+                startTick: noteStart,
+                heldTick: Number.NEGATIVE_INFINITY,
+                heldPitch: MidiFileGenerator.getPitchWheel(0),
+                attack: pitch => {
+                    this._handler.addNoteBend(track, noteStart, channel, noteKey, pitch);
+                    this._handler.addNote(track, noteStart, length, noteKey, velocity, channel);
+                }
+            });
+        }
+        const pending = this._tiedBendRestarts.get(restart);
+        if (!pending) return;
+        const originalStart = noteStart - window.advance;
+        const endTick = window.endTick!;
+        const emit = (tick: number, value: number) => {
+            if (tick <= pending.startTick) {
+                if (tick >= pending.heldTick) {
+                    pending.heldTick = tick;
+                    pending.heldPitch = value;
+                }
+            } else if (tick <= endTick) {
+                this._handler.addNoteBend(track, tick, channel, noteKey, value);
+            }
+        };
+        if (note.hasBend) {
+            emit(originalStart, MidiFileGenerator.getPitchWheel(note.bendPoints![0].value));
+            const duration = new MidiNoteDuration();
+            duration.noteOnly = nativeNoteLength;
+            this._generateBend(note, originalStart, duration, noteKey, channel, tempo, false, endTick, emit);
+        }
+        if (note === restart.lastNote) {
+            pending.attack(pending.heldPitch);
+            this._tiedBendRestarts.delete(restart);
+        }
+    }
+
+    private _generateBendWindow(note: Note, noteStart: number, length: number, noteKey: number, channel: number, tempo: number, window: NoteBendWindow, nativeNoteLength: number): void {
         const originalDuration = new MidiNoteDuration();
         originalDuration.noteOnly = window.duration ?? nativeNoteLength;
         const hasProjectedDuration = window.duration !== undefined;
