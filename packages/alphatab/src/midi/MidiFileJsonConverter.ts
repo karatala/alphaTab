@@ -37,8 +37,8 @@ export class MidiFileJsonConverter {
         [MidiEventType.TimeSignature, ['numerator', 'denominatorIndex', 'midiClocksPerMetronomeClick', 'thirtySecondNodesInQuarter']],
         [MidiEventType.AlphaTabRest, ['channel']],
         [MidiEventType.AlphaTabMetronome, ['metronomeNumerator', 'metronomeDurationInTicks', 'metronomeDurationInMilliseconds']],
-        [MidiEventType.NoteOn, ['channel', 'noteKey', 'noteVelocity']],
-        [MidiEventType.NoteOff, ['channel', 'noteKey', 'noteVelocity']],
+        [MidiEventType.NoteOn, ['channel', 'noteKey', 'noteVelocity', 'notePairId']],
+        [MidiEventType.NoteOff, ['channel', 'noteKey', 'noteVelocity', 'notePairId']],
         [MidiEventType.ControlChange, ['channel', 'controller', 'value', 'noteFade']],
         [MidiEventType.ProgramChange, ['channel', 'program']],
         [MidiEventType.TempoChange, ['beatsPerMinute']],
@@ -165,25 +165,23 @@ export class MidiFileJsonConverter {
                     JsonHelper.getValue(midiEvent, 'metronomeDurationInTicks') as number,
                     JsonHelper.getValue(midiEvent, 'metronomeDurationInMilliseconds') as number
                 );
-            case MidiEventType.NoteOn: {
-                const note = new NoteOnEvent(
+            case MidiEventType.NoteOn:
+            case MidiEventType.NoteOff: {
+                const EventClass = type === MidiEventType.NoteOn ? NoteOnEvent : NoteOffEvent;
+                const note = new EventClass(
                     track,
                     tick,
                     JsonHelper.getValue(midiEvent, 'channel') as number,
                     JsonHelper.getValue(midiEvent, 'noteKey') as number,
                     JsonHelper.getValue(midiEvent, 'noteVelocity') as number
                 );
-                note.gainEnvelope = JsonHelper.getValue(midiEvent, 'gainEnvelope') as NoteGainPoint[] | undefined;
+                const pairId = JsonHelper.getValue(midiEvent, 'notePairId') as number | undefined;
+                if (pairId) note.notePairId = pairId;
+                if (note instanceof NoteOnEvent) {
+                    note.gainEnvelope = JsonHelper.getValue(midiEvent, 'gainEnvelope') as NoteGainPoint[] | undefined;
+                }
                 return note;
             }
-            case MidiEventType.NoteOff:
-                return new NoteOffEvent(
-                    track,
-                    tick,
-                    JsonHelper.getValue(midiEvent, 'channel') as number,
-                    JsonHelper.getValue(midiEvent, 'noteKey') as number,
-                    JsonHelper.getValue(midiEvent, 'noteVelocity') as number
-                );
             case MidiEventType.ControlChange: {
                 const change = new ControlChangeEvent(
                     track,
@@ -293,6 +291,7 @@ export class MidiFileJsonConverter {
                 serialized.set('channel', (midiEvent as NoteEvent).channel);
                 serialized.set('noteKey', (midiEvent as NoteEvent).noteKey);
                 serialized.set('noteVelocity', (midiEvent as NoteEvent).noteVelocity);
+                if ((midiEvent as NoteEvent).notePairId !== undefined) serialized.set('notePairId', (midiEvent as NoteEvent).notePairId);
                 if (midiEvent instanceof NoteOnEvent && midiEvent.gainEnvelope) serialized.set('gainEnvelope', midiEvent.gainEnvelope);
                 break;
             case MidiEventType.ControlChange:

@@ -269,6 +269,9 @@ export class AlphaTabRestEvent extends AlphaTabSysExEvent {
  * @public
  */
 export abstract class NoteEvent extends MidiEvent {
+    /** Runtime identity shared by the attack and release of one generated note. @internal */
+    public notePairId?: number;
+
     /**
      * The channel on which the note is played.
      */

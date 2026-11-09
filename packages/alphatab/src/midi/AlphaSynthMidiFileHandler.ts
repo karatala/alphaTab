@@ -30,6 +30,7 @@ export class AlphaSynthMidiFileHandler implements IMidiFileHandler {
     private _midiFile: MidiFile;
     private _smf1Mode: boolean;
     private _sustainPedals: SustainPedalPlayback | null = null;
+    private _nextNotePairId = 1;
     private _noteGainEnvelope?: readonly NoteGainPoint[];
     private _gainNote?: { note: Note; tick: number; pair?: { attack: NoteOnEvent; release: NoteOffEvent } };
     private readonly _tiedGainAttacks = new Map<number, { attack: NoteOnEvent; release: NoteOffEvent }>();
@@ -137,6 +138,9 @@ export class AlphaSynthMidiFileHandler implements IMidiFileHandler {
         const attack = new NoteOnEvent(track, start, channel, noteKey, noteVelocity);
         attack.gainEnvelope = this._noteGainEnvelope;
         const release = new NoteOffEvent(track, start + length, channel, noteKey, noteVelocity);
+        if (!this._smf1Mode) {
+            attack.notePairId = release.notePairId = this._nextNotePairId++;
+        }
         if (this._gainNote) this._gainNote.pair = { attack, release };
         this._midiFile.addEvent(attack);
         this._midiFile.addEvent(release);

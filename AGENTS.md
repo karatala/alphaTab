@@ -9,6 +9,7 @@
 - Score.playbackSustainPedals is an app runtime opt-in. Omit it from score serialization and cloning. Playback collects source pedal spans on the existing visit path and changes only eligible Note Off ticks. Reset at jumps and at the end. Track note pairs in relevant channels so an extension cannot overtake another release of the same key. Retain existing event order otherwise.
 
 - Main synth-worker MIDI messages carry independent transferable Float64Array packets. Decode through the existing event constructors with exact numeric fields and track/event order. Retain existing JSON semantics and caller-owned source data. Keep both worker endpoints aligned; this is a runtime message format, not project persistence.
+- Pair each generated playback Note On and Note Off with a file-local ID. Preserve it through packed and object MIDI messages. Standard MIDI bytes do not carry this ID.
 
 - Local horizontal renderer reuse expands through linked master-bar renderer groups in both directions before caching. A changed middle bar can split or join a grouped effect band; complete SVG and bounds must match full layout through history. This expansion does not request another model owner or full score transmission.
 
