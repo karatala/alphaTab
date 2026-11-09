@@ -1,3 +1,5 @@
+import type { NoteGainPoint } from '@coderline/alphatab/midi/MidiEvent';
+
 type EffectEdge = { mode: 'default' | 'cut' | 'skip-short'; threshold: number };
 
 export interface MidiBeatEffectWindow {
@@ -8,6 +10,16 @@ export interface MidiBeatEffectWindow {
 }
 
 type EffectSampleWriter = (tick: number, value: number) => void;
+
+/** @internal */
+export function noteGainAt(points: readonly NoteGainPoint[], tick: number): number {
+    const idx = points.findIndex(point => point.tick > tick);
+    if (idx < 0) return points[points.length - 1].gain;
+    if (idx === 0) return points[0].gain;
+    const previous = points[idx - 1];
+    const next = points[idx];
+    return previous.gain + (next.gain - previous.gain) * (tick - previous.tick) / (next.tick - previous.tick);
+}
 
 /** @internal */
 export function sliceBeatEffectTiming(window: MidiBeatEffectWindow | undefined, barStart: number, attack: number, duration: number) {

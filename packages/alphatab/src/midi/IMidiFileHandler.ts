@@ -1,12 +1,20 @@
 import type { Bar } from '@coderline/alphatab/model/Bar';
 import type { Staff } from '@coderline/alphatab/model/Staff';
 import type { ControllerType } from '@coderline/alphatab/midi/ControllerType';
+import type { NoteGainPoint } from '@coderline/alphatab/midi/MidiEvent';
+import type { Note } from '@coderline/alphatab/model/Note';
 
 /**
  * A handler is responsible for writing midi events to a custom structure
  * @public
  */
 export interface IMidiFileHandler {
+    /** @internal */
+    setNoteGainEnvelope?(points?: readonly NoteGainPoint[]): void;
+    /** @internal */
+    beginNoteGain?(note: Note, tick: number): void;
+    /** @internal */
+    endNoteGain?(): void;
     /** @internal */
     startSustainPedalPlayback?(staves: readonly Staff[], channels: ReadonlySet<number>): void;
     /** @internal */
@@ -49,7 +57,7 @@ export interface IMidiFileHandler {
      * @param controller The midi controller that should change.
      * @param value The value to which the midi controller should change
      */
-    addControlChange(track: number, tick: number, channel: number, controller: ControllerType, value: number): void;
+    addControlChange(track: number, tick: number, channel: number, controller: ControllerType, value: number, noteFade?: true): void;
 
     /**
      * Add a program change to the generated midi file

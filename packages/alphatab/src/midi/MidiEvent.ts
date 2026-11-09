@@ -313,6 +313,8 @@ export abstract class NoteEvent extends MidiEvent {
  * @public
  */
 export class NoteOnEvent extends NoteEvent {
+    /** Runtime gain points in absolute MIDI ticks. @internal */
+    public gainEnvelope?: readonly NoteGainPoint[];
     public constructor(track: number, tick: number, channel: number, noteKey: number, noteVelocity: number) {
         super(track, tick, MidiEventType.NoteOn, channel, noteKey, noteVelocity);
     }
@@ -323,6 +325,12 @@ export class NoteOnEvent extends NoteEvent {
         s.writeByte(this.noteKey & 0xff);
         s.writeByte(this.noteVelocity & 0xff);
     }
+}
+
+/** @internal */
+export interface NoteGainPoint {
+    tick: number;
+    gain: number;
 }
 
 /**
@@ -347,6 +355,8 @@ export class NoteOffEvent extends NoteEvent {
  * @public
  */
 export class ControlChangeEvent extends MidiEvent {
+    /** Compatibility event for players without independent note gain. @internal */
+    public noteFade?: true;
     /**
      * The channel for which the controller is changing.
      */

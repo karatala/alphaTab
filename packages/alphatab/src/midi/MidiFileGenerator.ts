@@ -1,4 +1,5 @@
-import { sliceBeatEffectTiming, writeBeatEffectSlice } from '@coderline/alphatab/midi/MidiBeatEffectSlice';
+import { noteGainAt, sliceBeatEffectTiming, writeBeatEffectSlice } from '@coderline/alphatab/midi/MidiBeatEffectSlice';
+import type { NoteGainPoint } from '@coderline/alphatab/midi/MidiEvent';
 import { ControllerType } from '@coderline/alphatab/midi/ControllerType';
 import type { IMidiFileHandler } from '@coderline/alphatab/midi/IMidiFileHandler';
 
@@ -805,6 +806,9 @@ export class MidiFileGenerator {
         for (const automation of beat.automations) {
             this._generateNonTempoAutomation(beat, automation, barStartTick);
         }
+        if (beat.fade !== FadeType.None) {
+            this._handler.setNoteGainEnvelope?.(this._noteFadeEnvelope(beat, barStartTick, barStartTick + beatStart, audioDuration));
+        }
         if (beat.isRest) {
             this._handler.addRest(track.index, barStartTick + beatStart, track.playbackInfo.primaryChannel);
         } else if (beat.deadSlapped) {
@@ -813,6 +817,8 @@ export class MidiFileGenerator {
             const brushInfo = this._getBrushInfo(beat);
             const rasgueadoInfo = this._getRasgueadoInfo(beat, audioDuration);
             for (const n of beat.notes) {
+                const continued = n.tieOrigin || n.tieDestination || n.slideOrigin || n.slideTarget;
+                if (continued) this._handler.beginNoteGain?.(n, barStartTick + beatStart);
                 this._generateNote(
                     n,
                     barStartTick + beatStart,
@@ -821,10 +827,12 @@ export class MidiFileGenerator {
                     brushInfo,
                     rasgueadoInfo
                 );
+                if (continued) this._handler.endNoteGain?.();
             }
         }
 
         if (beat.fade !== FadeType.None) {
+            this._handler.setNoteGainEnvelope?.();
             this._generateFade(beat, barStartTick, barStartTick + beatStart, audioDuration);
         }
 
@@ -1403,12 +1411,30 @@ export class MidiFileGenerator {
         return MidiUtils.dynamicToVelocity(note.dynamics, adjustment);
     }
 
+    private _noteFadeEnvelope(beat: Beat, barStart: number, start: number, duration: number): NoteGainPoint[] | undefined {
+        const range = sliceBeatEffectTiming(beat.playbackEffectWindow, barStart, start, duration);
+        if (!range || duration <= 0) return undefined;
+        const end = start + duration;
+        const ramp = (length: number) => Math.max(1, Math.floor(length * 0.8));
+        const half = Math.floor(duration / 2);
+        const points = beat.fade === FadeType.VolumeSwell && half > 0
+            ? [{ tick: start, gain: 0 }, { tick: start + ramp(half), gain: 1 }, { tick: start + half, gain: 1 }, { tick: start + half + ramp(half), gain: 0 }]
+            : beat.fade === FadeType.FadeIn
+                ? [{ tick: start, gain: 0 }, { tick: start + ramp(duration), gain: 1 }]
+                : [{ tick: start, gain: 1 }, { tick: start + ramp(duration), gain: 0 }];
+        return [
+            { tick: range.start, gain: noteGainAt(points, range.start) },
+            ...points.filter(point => point.tick > range.start && point.tick < range.end),
+            { tick: Math.min(range.end, end), gain: noteGainAt(points, range.end) }
+        ];
+    }
+
     private _generateFade(beat: Beat, barStart: number, beatStart: number, beatDuration: number): void {
         const track: Track = beat.voice.bar.staff.track;
         const volume = MidiFileGenerator._toChannelShort(track.playbackInfo.volume);
         const writeVolume = (tick: number, value: number) => {
-            this._handler.addControlChange(track.index, tick, track.playbackInfo.primaryChannel, ControllerType.VolumeCoarse, value);
-            this._handler.addControlChange(track.index, tick, track.playbackInfo.secondaryChannel, ControllerType.VolumeCoarse, value);
+            this._handler.addControlChange(track.index, tick, track.playbackInfo.primaryChannel, ControllerType.VolumeCoarse, value, true);
+            this._handler.addControlChange(track.index, tick, track.playbackInfo.secondaryChannel, ControllerType.VolumeCoarse, value, true);
         };
         const includesEnd = writeBeatEffectSlice(beat.playbackEffectWindow, barStart, beatStart, beatDuration, volume, writeVolume, write => {
             switch (beat.fade) {
@@ -1428,8 +1454,8 @@ export class MidiFileGenerator {
         });
         if (includesEnd && (beat.fade === FadeType.FadeOut || beat.fade === FadeType.VolumeSwell)) {
             const silenceTick = Math.max(beatStart, beatStart + beatDuration - 1);
-            this._handler.addControlChange(track.index, silenceTick, track.playbackInfo.primaryChannel, ControllerType.AllSoundOff, 0);
-            this._handler.addControlChange(track.index, silenceTick, track.playbackInfo.secondaryChannel, ControllerType.AllSoundOff, 0);
+            this._handler.addControlChange(track.index, silenceTick, track.playbackInfo.primaryChannel, ControllerType.AllSoundOff, 0, true);
+            this._handler.addControlChange(track.index, silenceTick, track.playbackInfo.secondaryChannel, ControllerType.AllSoundOff, 0, true);
             writeVolume(beatStart + beatDuration, volume);
         }
     }
@@ -2593,6 +2619,9 @@ export class MidiFileGenerator {
 
     public generateSingleNote(note: Note) {
         const tempo = this.prepareSingleBeat(note.beat);
+        if (note.beat.fade !== FadeType.None) {
+            this._handler.setNoteGainEnvelope?.(this._noteFadeEnvelope(note.beat, -note.beat.playbackStart, 0, note.beat.playbackDuration));
+        }
         this._generateNote(
             note,
             0,
@@ -2601,5 +2630,6 @@ export class MidiFileGenerator {
             new Int32Array(note.beat.voice.bar.staff.tuning.length),
             null
         );
+        this._handler.setNoteGainEnvelope?.();
     }
 }
