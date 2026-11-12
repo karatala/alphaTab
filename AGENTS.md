@@ -226,6 +226,8 @@ instead of on paperwork, which is better for everyone.
 
 ## Local application behavior
 
+- AlphaSynthBase.loopOneTimeMidi is a protected opt-in for the standalone metronome and delegates to MidiFileSequencer. Repeat a finite positive one-time event pattern during rendering, using cumulative event times and fresh SynthEvent wrappers without changing source events or draining/resetting output at bar boundaries. Keep the active render/played clocks continuous and report an unbounded end only for this loop. Reset its offset on Stop or one-time replacement and clear the flag before restoring main playback. Default one-time completion and main/count-in playback keep their existing paths; no extra playback clock is added.
+
 - Wrap note heads, tablature fret numbers, and numbered notation note digits in `at-playback-glyph` SVG groups. Keep stems, beams, ledger lines, and effects outside these groups. Use the existing beat highlight classes for playback. Keep this markup separate from layout bounds and timing.
 
 - AlphaSynthWebWorkerApi connects AlphaSynthAudioWorkletOutput directly to its synth Worker with one MessageChannel per playback source. Sample requests, played-sample counts, PCM blocks and buffer resets use that channel; the main thread keeps setup and playback controls. AlphaSynthWorkerSynthOutput rejects stale stream IDs and closes its port on pause or disposal. The worklet closes its port on stop or replacement. Other outputs retain their existing message path and sequencer timing.

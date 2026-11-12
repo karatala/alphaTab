@@ -65,6 +65,12 @@ export class MidiFileSequencer {
     private _mainState: MidiSequencerState;
     private _oneTimeState: MidiSequencerState | null = null;
     private _countInState: MidiSequencerState | null = null;
+    private _oneTimeLoopOffset: number = 0;
+    public loopOneTimeMidi: boolean = false;
+
+    private get _isLoopingOneTimeMidi(): boolean {
+        return this.loopOneTimeMidi && this.isPlayingOneTimeMidi && this._currentState.synthData.length > 0 && Number.isFinite(this._currentState.endTime) && this._currentState.endTime > 0;
+    }
 
     public get metronomeChannel() {
         return this._mainState.metronomeChannel;
@@ -118,11 +124,11 @@ export class MidiFileSequencer {
      * Gets the duration of the song in ticks.
      */
     public get currentEndTick() {
-        return this._currentState.endTick;
+        return this._isLoopingOneTimeMidi ? Number.POSITIVE_INFINITY : this._currentState.endTick;
     }
 
     public get currentEndTime(): number {
-        return this._currentState.endTime / this.playbackSpeed;
+        return this._isLoopingOneTimeMidi ? Number.POSITIVE_INFINITY : this._currentState.endTime / this.playbackSpeed;
     }
 
     public get currentTempo(): number {
@@ -208,6 +214,8 @@ export class MidiFileSequencer {
     }
 
     public loadOneTimeMidi(midiFile: MidiFile): void {
+        this._oneTimeLoopOffset = 0;
+        this.loopOneTimeMidi = false;
         this._oneTimeState = this.createStateFromFile(midiFile);
         this._currentState = this._oneTimeState;
     }
@@ -378,6 +386,23 @@ export class MidiFileSequencer {
 
         let anyEventsDispatched: boolean = false;
         this._currentState.currentTime += millisecondsPerBuffer;
+        if (this._isLoopingOneTimeMidi) {
+            while (true) {
+                if (this._currentState.eventIndex >= this._currentState.synthData.length) {
+                    this._currentState.eventIndex = 0;
+                    this._oneTimeLoopOffset += this._currentState.endTime;
+                }
+                const sourceEvent = this._currentState.synthData[this._currentState.eventIndex];
+                const eventTime = sourceEvent.time + this._oneTimeLoopOffset;
+                if (eventTime >= this._currentState.currentTime) break;
+                const synthEvent = new SynthEvent(sourceEvent.eventIndex, sourceEvent.event);
+                synthEvent.time = eventTime;
+                this._synthesizer.dispatchEvent(synthEvent);
+                this._currentState.eventIndex++;
+                anyEventsDispatched = true;
+            }
+            return anyEventsDispatched;
+        }
         while (
             this._currentState.eventIndex < this._currentState.synthData.length &&
             this._currentState.synthData[this._currentState.eventIndex].time < this._currentState.currentTime &&
@@ -637,6 +662,7 @@ export class MidiFileSequencer {
     }
 
     private get _internalEndTime(): number {
+        if (this._isLoopingOneTimeMidi) return Number.POSITIVE_INFINITY;
         if (this.isPlayingMain) {
             return !this.mainPlaybackRange ? this._currentState.endTime : this._currentState.playbackRangeEndTime;
         }
@@ -649,6 +675,7 @@ export class MidiFileSequencer {
 
     public stop(): void {
         // AlphaSynth seeks to the range start after stopping. Begin its state replay at zero milliseconds.
+        this._oneTimeLoopOffset = 0;
         this._currentState.currentTime = 0;
         this._currentState.eventIndex = 0;
         this._currentState.syncPointIndex = 0;
@@ -658,6 +685,8 @@ export class MidiFileSequencer {
     }
 
     public resetOneTimeMidi() {
+        this._oneTimeLoopOffset = 0;
+        this.loopOneTimeMidi = false;
         this._oneTimeState = null;
         this._currentState = this._mainState;
     }

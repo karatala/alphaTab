@@ -49,6 +49,12 @@ export class AlphaSynthBase implements IAlphaSynth {
      */
     protected synthesizer: IAudioSampleSynthesizer;
     protected isSoundFontLoaded: boolean = false;
+    protected get loopOneTimeMidi(): boolean {
+        return this.sequencer.loopOneTimeMidi;
+    }
+    protected set loopOneTimeMidi(value: boolean) {
+        this.sequencer.loopOneTimeMidi = value;
+    }
     private _isMidiLoaded: boolean = false;
     private _tickPosition: number = 0;
     private _timePosition: number = 0;
