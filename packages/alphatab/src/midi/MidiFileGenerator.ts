@@ -153,7 +153,7 @@ export class MidiFileGenerator {
     }
 
     /**
-     * Generates the same MIDI data in track and played-bar steps.
+     * Generates the same MIDI data in track setup, staff-bar and traversal steps.
      * The caller must not change the score or settings between steps.
      * @internal
      */
@@ -192,19 +192,7 @@ export class MidiFileGenerator {
                     this._detectTickShift();
                 }
             },
-            (index, currentTick, currentTempo) => {
-                for (const track of this._score.tracks) {
-                    for (const staff of track.staves) {
-                        if (index < staff.bars.length) {
-                            const bar = staff.bars[index];
-                            if (pedalStaves.length > 0) {
-                                this._handler.beginSustainPedalBar?.(bar, currentTick);
-                            }
-                            this._generateBar(bar, currentTick, currentTempo);
-                        }
-                    }
-                }
-            },
+            (index, currentTick, currentTempo) => this._generatePlayedBarsSteps(index, currentTick, currentTempo, pedalStaves.length > 0),
             endTick => {
                 if (pedalStaves.length > 0) {
                     this._handler.finishSustainPedalPlayback?.(endTick);
@@ -216,6 +204,21 @@ export class MidiFileGenerator {
         );
 
         Logger.debug('Midi', 'Midi generation done');
+    }
+
+    private *_generatePlayedBarsSteps(index: number, currentTick: number, currentTempo: number, hasSustainPedals: boolean): IterableIterator<void> {
+        for (const track of this._score.tracks) {
+            for (const staff of track.staves) {
+                if (index < staff.bars.length) {
+                    const bar = staff.bars[index];
+                    if (hasSustainPedals) {
+                        this._handler.beginSustainPedalBar?.(bar, currentTick);
+                    }
+                    this._generateBar(bar, currentTick, currentTempo);
+                    yield;
+                }
+            }
+        }
     }
 
     private _detectTickShift() {
@@ -370,7 +373,7 @@ export class MidiFileGenerator {
             currentTempo: number,
             barOccurence: number
         ) => void,
-        generateTracks: (barIndex: number, currentTick: number, currentTempo: number) => void,
+        generateTracks: (barIndex: number, currentTick: number, currentTempo: number) => IterableIterator<void> | void,
         finish: (endTick: number) => void
     ): Generator<void, PlayThroughContext> {
         const controller: MidiPlaybackController = new MidiPlaybackController(score);
@@ -398,7 +401,8 @@ export class MidiFileGenerator {
 
                 const trackTempo =
                     bar.tempoAutomations.length > 0 ? bar.tempoAutomations[0].value : playContext.currentTempo;
-                generateTracks(index, currentTick, trackTempo);
+                const trackSteps = generateTracks(index, currentTick, trackTempo);
+                if (trackSteps) yield* trackSteps;
 
                 playContext.synthTick = currentTick;
                 MidiFileGenerator._processBarTime(bar, occurence, playContext);

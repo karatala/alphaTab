@@ -1862,9 +1862,10 @@ export class AlphaTabApiBase<TSettings> {
     /**
      * Generates MIDI between caller-scheduled tasks and installs only a current result.
      * The caller must invalidate isCurrent before changing the score or MIDI settings.
+     * The final callback receives true to request a separate installation task.
      * @internal
      */
-    public async loadMidiForScoreAsync(yieldControl: () => Promise<void> | void, isCurrent: () => boolean): Promise<boolean> {
+    public async loadMidiForScoreAsync(yieldControl: (force?: boolean) => Promise<void> | void, isCurrent: () => boolean): Promise<boolean> {
         if (this._isDestroyed || !isCurrent()) return false;
         const prepared = this._prepareMidiForScore();
         if (!prepared) return false;
@@ -1878,6 +1879,9 @@ export class AlphaTabApiBase<TSettings> {
                 if (waiting) await waiting;
                 if (!current()) return false;
             }
+            if (!current()) return false;
+            const waiting = yieldControl(true);
+            if (waiting) await waiting;
             if (!current()) return false;
             this._isPreparingMidi = false;
             this._loadGeneratedMidi(prepared.score, prepared.midiFile, prepared.handler, prepared.generator);
