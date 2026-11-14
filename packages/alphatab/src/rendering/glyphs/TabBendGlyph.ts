@@ -222,7 +222,9 @@ export class TabBendGlyph extends Glyph implements ITieGlyph {
         switch (note.bendType) {
             case BendType.Custom:
                 for (const bendPoint of note.bendPoints!) {
-                    renderingPoints.push(new TabBendRenderPoint(bendPoint.offset, bendPoint.value));
+                    const renderPoint = new TabBendRenderPoint(bendPoint.offset, bendPoint.value);
+                    renderPoint.isGenerated = bendPoint.isGenerated;
+                    renderingPoints.push(renderPoint);
                 }
                 break;
             case BendType.BendRelease:
@@ -432,7 +434,7 @@ export class TabBendGlyph extends Glyph implements ITieGlyph {
             if (x2 > x1) {
                 const isUp = secondPt.value > firstPt.value;
                 // small offset to have line inside arrow head and not showing in tip
-                const arrowOffset = isUp ? 3 : -3;
+                const arrowOffset = secondPt.isGenerated ? 0 : isUp ? 3 : -3;
 
                 // draw bezier line from first to second point
                 canvas.moveTo(x1, y1);
@@ -484,7 +486,7 @@ export class TabBendGlyph extends Glyph implements ITieGlyph {
         this._paintBendLine(canvas, x1, y1, x2, y2, firstPt, secondPt);
 
         const arrowSize = smufl.glyphWidths.get(MusicFontSymbol.ArrowheadBlackDown)!;
-        if (firstPt.value !== secondPt.value) {
+        if (!secondPt.isGenerated && firstPt.value !== secondPt.value) {
             const up = secondPt.value > firstPt.value;
             this._paintBendLineArrow(canvas, x2, y2, y1, arrowSize, up);
 

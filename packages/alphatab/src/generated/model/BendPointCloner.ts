@@ -12,6 +12,7 @@ export class BendPointCloner {
         const clone = new BendPoint();
         clone.offset = original.offset;
         clone.value = original.value;
+        clone.isGenerated = original.isGenerated;
         return clone;
     }
 }

@@ -22,6 +22,7 @@ export class BendPointSerializer {
         const o = new Map<string, unknown>();
         o.set("offset", obj.offset);
         o.set("value", obj.value);
+        o.set("isgenerated", obj.isGenerated);
         return o;
     }
     public static setProperty(obj: BendPoint, property: string, v: unknown): boolean {
@@ -31,6 +32,9 @@ export class BendPointSerializer {
                 return true;
             case "value":
                 obj.value = v! as number;
+                return true;
+            case "isgenerated":
+                obj.isGenerated = v! as boolean;
                 return true;
         }
         return false;

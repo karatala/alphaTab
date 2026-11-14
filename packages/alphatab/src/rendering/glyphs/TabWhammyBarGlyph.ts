@@ -17,6 +17,7 @@ import { ElementStyleHelper } from '@coderline/alphatab/rendering/utils/ElementS
 export class TabWhammyBarGlyph extends EffectGlyph {
     private _beat: Beat;
     private _renderPoints: BendPoint[];
+    private _hasGeneratedPoints: boolean;
     private _isSimpleDip: boolean = false;
 
     public originalTopOffset = 0;
@@ -28,6 +29,7 @@ export class TabWhammyBarGlyph extends EffectGlyph {
         super(0, 0);
         this._beat = beat;
         this._renderPoints = this._createRenderingPoints(beat);
+        this._hasGeneratedPoints = this._renderPoints.some(point => point.isGenerated);
     }
 
     /** Right edge may reach into the next renderer's x for cross-bar curves. */
@@ -150,6 +152,9 @@ export class TabWhammyBarGlyph extends EffectGlyph {
     private _getOffset(value: number): number {
         if (value === 0) {
             return 0;
+        }
+        if (this._hasGeneratedPoints && Math.abs(value) < 2) {
+            return value / 2 * this.renderer.smuflMetrics.tabWhammyPerHalfHeight;
         }
         let offset: number =
             this.renderer.smuflMetrics.tabWhammyPerHalfHeight +
@@ -302,6 +307,7 @@ export class TabWhammyBarGlyph extends EffectGlyph {
 
         let dV: number = Math.abs(secondPt.value);
         if (
+            !secondPt.isGenerated &&
             (dV !== 0 ||
                 (this.renderer.settings.notation.isNotationElementVisible(NotationElement.ZerosOnDiveWhammys) &&
                     !this._isSimpleDip)) &&

@@ -21,6 +21,12 @@ export class BendPoint {
     public value: number;
 
     /**
+     * Whether this point is a derived curve sample without its own notation label or arrow.
+     * The point still contributes to the contour and playback.
+     */
+    public isGenerated: boolean = false;
+
+    /**
      * Initializes a new instance of the {@link BendPoint} class.
      * @param offset The offset.
      * @param value The value.
