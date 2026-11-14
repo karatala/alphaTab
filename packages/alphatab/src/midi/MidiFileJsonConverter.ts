@@ -76,12 +76,22 @@ export class MidiFileJsonConverter {
                 const type = values[offset] as MidiEventType;
                 const fields = this._messageFields.get(type);
                 if (!fields) throw new AlphaTabError(AlphaTabErrorType.Format, `Unknown Midi Event type: ${type}`);
-                const event: Record<string, number> = { type, track: values[offset + 1], tick: values[offset + 2] };
-                for (let fieldIndex = 0; fieldIndex < fields.length; fieldIndex++) {
-                    const field = fields[fieldIndex];
-                    event[field === 'thirtySecondNodesInQuarter' ? 'thirdySecondNodesInQuarter' : field] = values[offset + 3 + fieldIndex];
+                let restored: MidiEvent;
+                if (type === MidiEventType.NoteOn || type === MidiEventType.NoteOff) {
+                    const EventClass = type === MidiEventType.NoteOn ? NoteOnEvent : NoteOffEvent;
+                    const note = new EventClass(values[offset + 1], values[offset + 2], values[offset + 3], values[offset + 4], values[offset + 5]);
+                    if (values[offset + 6]) note.notePairId = values[offset + 6];
+                    restored = note;
+                } else if (type === MidiEventType.PerNotePitchBend) {
+                    restored = new NoteBendEvent(values[offset + 1], values[offset + 2], values[offset + 3], values[offset + 4], values[offset + 5]);
+                } else {
+                    const event: Record<string, number> = { type, track: values[offset + 1], tick: values[offset + 2] };
+                    for (let fieldIndex = 0; fieldIndex < fields.length; fieldIndex++) {
+                        const field = fields[fieldIndex];
+                        event[field === 'thirtySecondNodesInQuarter' ? 'thirdySecondNodesInQuarter' : field] = values[offset + 3 + fieldIndex];
+                    }
+                    restored = this.jsObjectToMidiEvent(event);
                 }
-                const restored = this.jsObjectToMidiEvent(event);
                 if (restored instanceof NoteOnEvent && values[offset + 7]) restored.gainEnvelope = message.noteGains?.[values[offset + 7] - 1];
                 track.events.push(restored);
             }
