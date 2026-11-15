@@ -54,11 +54,15 @@ export class WebAudioHelper {
     public static async checkSinkIdSupport() {
         // https://caniuse.com/mdn-api_audiocontext_sinkid
         const context = WebAudioHelper.createAudioContext();
-        if (!('setSinkId' in context)) {
-            Logger.warning('WebAudio', 'Browser does not support changing the output device');
-            return false;
+        try {
+            if (!('setSinkId' in context)) {
+                Logger.warning('WebAudio', 'Browser does not support changing the output device');
+                return false;
+            }
+            return true;
+        } finally {
+            await context.close();
         }
-        return true;
     }
 
     public static async enumerateOutputDevices(): Promise<ISynthOutputDevice[]> {

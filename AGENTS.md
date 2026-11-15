@@ -226,6 +226,8 @@ instead of on paperwork, which is better for everyone.
 
 ## Local application behavior
 
+- WebAudioHelper.checkSinkIdSupport closes its temporary AudioContext in a finally block before returning the support result. Keep this probe separate from the real player output context and propagate close failures.
+
 - BendPoint.isGenerated marks derived curve samples and defaults to false. Keep the source field, generated serializer and cloner aligned so full and bounded render workers retain it. Custom tablature bend/whammy graphs use marked points for their complete contour and playback, without separate labels/arrows at those points. Remove the bend-line arrow inset only at a marked destination to keep the sampled contour joined. Whammy graphs with generated points use a continuous sign-preserving linear display offset below absolute value 2, joining the existing logarithmic height at 2; playback values remain exact. Unmarked imported graphs retain existing behavior and geometry. Authored curve points/handles stay owned by the application, without this derived flag in its project model.
 
 - AlphaSynthBase.loopOneTimeMidi is a protected opt-in for the standalone metronome and delegates to MidiFileSequencer. Repeat a finite positive one-time event pattern during rendering, using cumulative event times and fresh SynthEvent wrappers without changing source events or draining/resetting output at bar boundaries. Keep the active render/played clocks continuous and report an unbounded end only for this loop. Reset its offset on Stop or one-time replacement and clear the flag before restoring main playback. Default one-time completion and main/count-in playback keep their existing paths; no extra playback clock is added.
