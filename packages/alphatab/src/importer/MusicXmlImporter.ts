@@ -3348,16 +3348,26 @@ export class MusicXmlImporter extends ScoreImporter {
         for (const c of element.childElements()) {
             switch (c.localName) {
                 // case 'syllabic' not supported
-                case 'text':
+                case 'text': {
+                    const text = c.getAttribute('xml:space') === 'preserve' ? c.childNodes.map(node => node.innerText).join('') : c.innerText;
                     if (beat.lyrics[index]) {
-                        beat.lyrics[index] += ` ${c.innerText}`;
+                        beat.lyrics[index] += ` ${text}`;
                     } else {
-                        beat.lyrics[index] = c.innerText;
+                        beat.lyrics[index] = text;
                     }
                     break;
+                }
                 case 'elision':
                     beat.lyrics[index] += c.innerText;
                     break;
+                case 'end-line':
+                case 'end-paragraph': {
+                    const byBeat = (track.sourceLyricBreaks ??= new Map<number, number[]>());
+                    const breaks = byBeat.get(beat.id) ?? [];
+                    breaks[index] = Math.max(breaks[index] ?? 0, c.localName === 'end-paragraph' ? 2 : 1);
+                    byBeat.set(beat.id, breaks);
+                    break;
+                }
             }
         }
     }

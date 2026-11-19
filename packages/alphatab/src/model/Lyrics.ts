@@ -33,6 +33,9 @@ export class Lyrics {
      */
     public text: string = '';
 
+    /** Exact import text when the rendering parser uses a normalized copy. */
+    public sourceText?: string;
+
     /**
      * Gets or sets the prepared chunks of the lyrics to apply to beats.
      */

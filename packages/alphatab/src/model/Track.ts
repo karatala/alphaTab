@@ -201,7 +201,27 @@ export class Track {
         }
     }
 
+    /**
+     * Original lyric input from the importer, including line breaks and comments.
+     * @json_ignore
+     */
+    public sourceLyrics?: { startBar: number; text: string }[];
+
+    /**
+     * Explicit line or paragraph breaks after a lyric line on a beat.
+     * @json_ignore
+     */
+    public sourceLyricBreaks?: Map<number, number[]>;
+
+    public setSourceLyrics(lyrics: Lyrics[]): void {
+        if (lyrics.length === 0) {
+            return;
+        }
+        this.sourceLyrics = lyrics.map(lyric => ({ startBar: lyric.startBar, text: lyric.sourceText ?? lyric.text }));
+    }
+
     public applyLyrics(lyrics: Lyrics[]): void {
+        this.setSourceLyrics(lyrics);
         for (const lyric of lyrics) {
             lyric.finish();
         }

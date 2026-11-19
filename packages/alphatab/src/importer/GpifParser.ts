@@ -182,9 +182,11 @@ export class GpifParser {
             this._assignFingeringForGp6();
         }
         this.score.finish(settings);
-        if (!this._skipApplyLyrics && this._lyricsByTrack.size > 0) {
-            for (const [t, lyrics] of this._lyricsByTrack) {
-                const track: Track = this._tracksById.get(t)!;
+        for (const [trackId, lyrics] of this._lyricsByTrack) {
+            const track = this._tracksById.get(trackId)!;
+            if (this._skipApplyLyrics) {
+                track.setSourceLyrics(lyrics);
+            } else {
                 track.applyLyrics(lyrics);
             }
         }
@@ -1026,6 +1028,7 @@ export class GpifParser {
                     break;
                 case 'Text':
                     lyrics.text = c.innerText;
+                    lyrics.sourceText = c.childNodes.map(node => node.innerText).join('');
                     break;
             }
         }

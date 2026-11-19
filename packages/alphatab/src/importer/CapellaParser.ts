@@ -987,7 +987,7 @@ export class CapellaParser {
                     if (!beat.lyrics) {
                         beat.lyrics = [];
                     }
-                    let text = c.innerText;
+                    let text = c.getAttribute('xml:space') === 'preserve' ? c.childNodes.map(node => node.innerText).join('') : c.innerText;
                     if (c.getAttribute('hyphen') === 'true') {
                         text += '-';
                     }
